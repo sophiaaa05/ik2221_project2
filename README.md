@@ -2,7 +2,7 @@
 
 ## Setup
 
-- Clone the repository, including submodules: `git clone --recursive git@github.com:sophiaaa05/ik2221_project2.git`
+- Clone the repository: `git clone git@github.com:sophiaaa05/ik2221_project2.git`, then navigate into it
 - Download the UV package manager: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - Create a new virtual environment and activate it: `uv venv ./venv --python 3.12 && source ./venv/bin/activate`
 - Install required packages: `uv pip install -r ./lmcache-vllm-extended/requirements.txt`
@@ -11,7 +11,7 @@
 To work with Git, you'll need to set up the VM's SSH key and add to your Github account; see [this article](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent). You may also have to update your git config to make commits appear from your correct account in the repo by running:
 
 - git config --global user.name "your-github-username"
-- git config --global user.email "your-github-email@example.com"
+- git config --global user.email "<your-github-email@example.com>"
 
 ## Development
 

@@ -1,3 +1,0 @@
-torch>=2.2.0
-redis
-pytest>=7.0
