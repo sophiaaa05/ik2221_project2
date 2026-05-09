@@ -1,0 +1,8 @@
+{
+  "label": "cache_1GB_repeat",
+  "total_time_sec": 287.6622097273357,
+  "num_requests": 210,
+  "num_successful": 210,
+  "throughput_req_per_sec": 0.7300228980339516,
+  "avg_latency_sec": 1.3696740909102594
+}

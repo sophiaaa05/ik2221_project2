@@ -1,0 +1,8 @@
+{
+  "label": "cache_4GB_single",
+  "total_time_sec": 94.92207439197227,
+  "num_requests": 70,
+  "num_successful": 70,
+  "throughput_req_per_sec": 0.7374470105967261,
+  "avg_latency_sec": 1.3559064543539925
+}

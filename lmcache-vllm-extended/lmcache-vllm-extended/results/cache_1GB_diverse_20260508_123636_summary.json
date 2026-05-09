@@ -1,0 +1,8 @@
+{
+  "label": "cache_1GB_diverse",
+  "total_time_sec": 187.17262949608266,
+  "num_requests": 140,
+  "num_successful": 140,
+  "throughput_req_per_sec": 0.7479726089061011,
+  "avg_latency_sec": 1.336819125825007
+}
