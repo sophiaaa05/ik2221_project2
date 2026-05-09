@@ -1,9 +1,6 @@
 [submodule "lmcache-vllm-extended"]
 	path = lmcache-vllm-extended
 	url = git@github.com:sophiaaa05/lmcache-vllm-extended.git
-[submodule "LMCache"]
-	path = LMCache
-	url = git@github.com:sophiaaa05/LMCache.git
 [submodule "lmcache-server"]
 	path = lmcache-server
 	url = git@github.com:sophiaaa05/lmcache-server.git
