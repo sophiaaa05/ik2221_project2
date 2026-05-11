@@ -239,7 +239,7 @@ def save_results(results, summary, label, output_dir="results"):
 def main():
     parser = argparse.ArgumentParser(
         description="IK2221 Request Generator ")
-    parser.add_argument("--context-dir", default="../../ik2221-data-resources",
+    parser.add_argument("--context-dir", default="/data",
                         help="Path to folder with .txt context files")
     parser.add_argument("--repeat", type=int, default=1,
                         help="Repeat each (context, question) pair N times")
