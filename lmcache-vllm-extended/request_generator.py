@@ -270,18 +270,13 @@ def save(results: list, summary: dict, label: str, output_dir: str):
     print(f"  Saved results → {rpath}")
     print(f"  Saved summary → {spath}")
 
-
 def main():
 
-    parser = argparse.ArgumentParser(description="IK2221 Request Generator ")
-    parser.add_argument("--context-dir",type=Path, default=BASE_DIR / "frontend" / "data",)
-    parser.add_argument("--repeat", type=int, default=1,help="Repeat each (context, question) pair N times")
-    parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed for shuffling")
-    parser.add_argument("--output-dir", default="results",
-                        help="Folder to save result JSON files")
-    parser.add_argument("--label", default="experiment",
-                        help="Label for this run")
+    parser = argparse.ArgumentParser(description="IK2221 Request Generator")
+    parser.add_argument("--context-dir", type=Path, default=BASE_DIR / "frontend" / "data")
+    parser.add_argument("--mode", choices=["single", "repeat", "diverse", "all"], default="all")
+    parser.add_argument("--cache-label", default="cache_XGB")
+    parser.add_argument("--output-dir", default="results")
     args = parser.parse_args()
 
     print(f"\n{'='*65}")
