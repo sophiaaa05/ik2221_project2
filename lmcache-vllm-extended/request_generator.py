@@ -218,15 +218,17 @@ def run_repeat_pass(requests: list, client: OpenAI, model_id: str) -> list:
 
 # ── summarise ─────────────────────────────────────────────────────────────────
 def summarise(results: list, label: str, total_time: float) -> dict:
-    ok  = [r for r in results if r["latency"] is not None]
-    avg = sum(r["latency"] for r in ok) / len(ok) if ok else 0.0
+    ok  = [r for r in results if r["latency"] is not None and r["ttft"] is not None]
+    avg_lat = sum(r["latency"] for r in ok) / len(ok) if ok else 0.0
+    avg_ttft = sum(r["ttft"] for r in ok) / len(ok) if ok else 0.0
     thr = len(ok) / total_time if total_time > 0 else 0.0
 
     print(f"\n  -- Summary: {label} --")
     print(f"     Requests   : {len(ok)}/{len(results)} successful")
     print(f"     Total time : {total_time:.2f}s")
     print(f"     Throughput : {thr:.4f} req/s")
-    print(f"     Avg latency: {avg:.4f}s")
+    print(f"     Avg Latency: {avg_lat:.4f}s")
+    print(f"     Avg TTFT   : {avg_ttft:.4f}s")
 
     summary = {
         "label":                  label,
@@ -234,22 +236,36 @@ def summarise(results: list, label: str, total_time: float) -> dict:
         "num_requests":           len(results),
         "num_successful":         len(ok),
         "throughput_req_per_sec": thr,
-        "avg_latency_sec":        avg,
+        "avg_latency_sec":        avg_lat,
+        "avg_ttft_sec":           avg_ttft,
     }
 
     cold = [r for r in ok if r["pass"] == "cold"]
     warm = [r for r in ok if r["pass"] == "warm"]
     if cold and warm:
-        avg_cold   = sum(r["latency"] for r in cold) / len(cold)
-        avg_warm   = sum(r["latency"] for r in warm) / len(warm)
-        improvement = (avg_cold - avg_warm) / avg_cold * 100
-        print(f"     Avg latency (cold): {avg_cold:.4f}s")
-        print(f"     Avg latency (warm): {avg_warm:.4f}s")
-        print(f"     Cache improvement : {improvement:.1f}%")
+        avg_lat_cold   = sum(r["latency"] for r in cold) / len(cold)
+        avg_lat_warm   = sum(r["latency"] for r in warm) / len(warm)
+        lat_improvement = (avg_lat_cold - avg_lat_warm) / avg_lat_cold * 100 if avg_lat_cold > 0 else 0.0
+
+        avg_ttft_cold  = sum(r["ttft"] for r in cold) / len(cold)
+        avg_ttft_warm  = sum(r["ttft"] for r in warm) / len(warm)
+        ttft_improvement = (avg_ttft_cold - avg_ttft_warm) / avg_ttft_cold * 100 if avg_ttft_cold > 0 else 0.0
+
+        print(f"     ---")
+        print(f"     Avg Latency (cold): {avg_lat_cold:.4f}s")
+        print(f"     Avg Latency (warm): {avg_lat_warm:.4f}s")
+        print(f"     Latency Improv.   : {lat_improvement:.1f}%")
+        print(f"     Avg TTFT (cold)   : {avg_ttft_cold:.4f}s")
+        print(f"     Avg TTFT (warm)   : {avg_ttft_warm:.4f}s")
+        print(f"     TTFT Improv.      : {ttft_improvement:.1f}%")
+
         summary.update({
-            "avg_latency_cold_sec":  avg_cold,
-            "avg_latency_warm_sec":  avg_warm,
-            "cache_improvement_pct": improvement,
+            "avg_latency_cold_sec":  avg_lat_cold,
+            "avg_latency_warm_sec":  avg_lat_warm,
+            "latency_improvement_pct": lat_improvement,
+            "avg_ttft_cold_sec":     avg_ttft_cold,
+            "avg_ttft_warm_sec":     avg_ttft_warm,
+            "ttft_improvement_pct":  ttft_improvement,
         })
 
     return summary
