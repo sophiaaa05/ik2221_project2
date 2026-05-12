@@ -105,12 +105,10 @@ def send_batch_request(batch, timeout=200):
             "request_id": req["request_id"],
             "context_id": req["context_id"],
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": req["context_text"]},
+                {"role": "user", "content": SYSTEM_PROMPT + "###" + req["context_text"]},
                 {"role": "user", "content": req["question"]},
             ],
-            "max_tokens": 200,
-            "temperature": 0.0,
+            "temperature": 0.5,
         })
     
     start = time.perf_counter()
