@@ -56,7 +56,8 @@ def load_contexts(context_dir):
             print(f"  Loaded: {context_id} ({len(text)} chars)")
     return contexts
 
-# 
+# ── request list builders ─────────────────────────────────────────────────────
+
 def build_request_list(contexts: dict, questions: list, seed: int) -> list:
     """One entry per (context, question) pair, shuffled with given seed."""
     pairs = [
@@ -153,11 +154,13 @@ def summarise(results: list, label: str, total_time: float) -> dict:
         "avg_latency_sec":        avg_lat,
     }
 
+# ── trial seed offset ─────────────────────────────────────────────────────────
 
 def get_trial_seed(base_seed: int, trial: int) -> int:
     """Return a unique seed for a trial, keeping pseudo‑independence."""
     return base_seed + trial * 1000   # arbitrary offset
 
+# ── Experiment functions (now accept trial and optional run_type) ─────────────
 
 def experiment_single(contexts, questions, cache_label, output_dir, trial=1):
     label = f"{cache_label}_single_trial{trial}"
@@ -318,6 +321,7 @@ def main():
                 return
             if args.mode == "diverse_more_repeat":
                 return
+            # 'all' will skip them automatically below.
 
     # Helper to run an experiment multiple trials and save averaged summary
     def run_trials(exp_func, ctx, qs, label, run_type=None):
@@ -329,8 +333,8 @@ def main():
                 res, summ = exp_func(ctx, qs, args.cache_label, args.output_dir,
                                      trial=trial, run_type=run_type)
             trial_summaries.append(summ)
-        avg = average_trial_summaries(trial_summaries, f"{args.cache_label}_{run_type if run_type else 'single'}_avg")
-        save_averaged_summary(avg, f"{args.cache_label}_{run_type if run_type else 'single'}_avg", args.output_dir)
+        avg = average_trial_summaries(trial_summaries, f"{args.cache_label}_{run_type if run_type else 'single'}")
+        save_averaged_summary(avg, f"{args.cache_label}_{run_type if run_type else 'single'}", args.output_dir)
 
     # Execute requested modes
     if args.mode in ("single", "all"):

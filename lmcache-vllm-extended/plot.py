@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from glob import glob
 
-CACHE_SIZES = ["0GB", "0p5GB", "1GB", "2GB", "3GB", "4GB", "6GB", "8GB"]
+CACHE_SIZES = ["0GB",  "1GB", "2GB", "4GB",  "8GB"]
 
 SIZE_LABELS = {
     "0GB": "0GB", "0p5GB": "0.5GB", "1GB": "1GB", "2GB": "2GB",
@@ -300,6 +300,36 @@ def plot_diversity_effect(summaries, output_dir):
     plt.close()
     print(f"Saved: {out}")
 
+def plot_seqlen_vs_latency_expanded(all_results, output_dir):
+    """Use diverse_more_contexts data which has wider prompt length range."""
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sizes_present = [s for s in CACHE_SIZES if (s, "diverse_more_contexts") in all_results]
+    colors = cm.viridis(np.linspace(0, 1, len(sizes_present)))
+
+    for i, size in enumerate(sizes_present):
+        data = all_results[(size, "diverse_more_contexts")]
+        xs = [r["prompt_len"] for r in data if r["latency"] is not None]
+        ys = [r["latency"]    for r in data if r["latency"] is not None]
+        ax.scatter(xs, ys, alpha=0.4, s=20, color=colors[i],
+                   label=f"{SIZE_LABELS[size]} cache")
+        if len(xs) > 1:
+            z = np.polyfit(xs, ys, 1)
+            p = np.poly1d(z)
+            xs_s = sorted(xs)
+            ax.plot(xs_s, [p(x) for x in xs_s],
+                    color=colors[i], linewidth=1.5, alpha=0.8)
+
+    ax.set_xlabel("Prompt Length (characters)", fontsize=12)
+    ax.set_ylabel("Latency (s)", fontsize=12)
+    ax.set_title("Sequence Length vs Latency (Expanded Contexts)", fontsize=14)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    out = os.path.join(output_dir, "seqlen_vs_latency_expanded.png")
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print(f"Saved: {out}")
+
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -325,6 +355,7 @@ def main():
     plot_seqlen_vs_latency(all_results, args.output_dir)
     plot_cache_hit_effect(all_results, args.output_dir)
     plot_diversity_effect(summaries, args.output_dir)
+    plot_seqlen_vs_latency_expanded(all_results, args.output_dir)
 
     print(f"\nAll plots saved to: {args.output_dir}/")
 
