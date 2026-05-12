@@ -1,0 +1,17 @@
+FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
+Authors: Tri Dao, Dan Fu, Stefano Ermon, Atri Rudra, Christopher Ré
+
+Abstract
+FlashAttention is a new attention algorithm that computes exact attention with far fewer memory accesses. By making the attention algorithm IO-aware—accounting for reads and writes between levels of GPU memory—FlashAttention accelerates model training and inference while reducing memory footprint.
+
+1. Introduction
+The time and memory complexity of standard attention scales quadratically with sequence length. FlashAttention aims to break this bottleneck by minimizing memory reads/writes (HBM to SRAM) using a technique called tiling.
+
+2. Background
+GPUs have a massive but slow High Bandwidth Memory (HBM) and a small but blazing-fast SRAM. The standard attention mechanism writes large intermediate matrices (like the attention score matrix) to HBM, which is extremely slow. 
+
+3. FlashAttention Design
+FlashAttention uses tiling to load blocks of queries, keys, and values from HBM to SRAM, compute the attention scores, and write the final output back to HBM without ever saving the massive intermediate matrices. 
+
+4. Evaluation
+FlashAttention yields up to 3x speedups for training Transformers compared to standard PyTorch implementations and enables scaling to sequence lengths of 64K and beyond.

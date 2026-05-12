@@ -1,0 +1,21 @@
+ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
+Authors: Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, Yuxiong He
+
+Abstract
+Training large deep learning models is limited by GPU memory capacity. We present ZeRO (Zero Redundancy Optimizer), a novel memory optimization technology that eliminates memory redundancies in data- and model-parallel training while retaining low communication volume and high compute granularity. 
+
+1. Introduction
+Large models offer significant accuracy gains, but training them is challenging because they do not fit in the memory of a single device. Data parallelism (DP) does not reduce memory footprint per device, while model parallelism (MP) has high communication overhead and limits scaling.
+
+2. Memory Redundancy in DP
+In standard DP, the entire model state (weights, gradients, and optimizer states) is replicated across all GPUs. For large models (e.g., Adam optimizer with fp16 training), the optimizer states and gradients consume the vast majority of the memory.
+
+3. ZeRO Stages
+ZeRO partitions the model states across DP processes rather than replicating them.
+- ZeRO-1: Partitions optimizer states.
+- ZeRO-2: Partitions gradients.
+- ZeRO-3: Partitions model parameters.
+By applying these stages, memory footprint scales linearly with the DP degree, allowing much larger models to be trained.
+
+4. Conclusion
+ZeRO enables training models with trillions of parameters on existing GPU clusters, effectively democratizing large model training without requiring complex model parallelism.

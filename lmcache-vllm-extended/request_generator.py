@@ -1,10 +1,12 @@
 """
 IK2221 - Request Generator 
 =======================================================
-
+Supports multiple trials, expanded contexts, and a
+repeated run on the expanded set.
 """
 
 import os
+import re
 from pathlib import Path
 import sys
 import time
@@ -14,7 +16,7 @@ import argparse
 from datetime import datetime
 
 
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "lmcache-vllm-extended", "frontend")
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
 sys.path.insert(0, FRONTEND_DIR)
 from chat_session import ChatSession
 
@@ -40,27 +42,6 @@ QUESTIONS = [
     "What limitations does this document acknowledge?",
 ]
 
-QUESTIONS_DIVERSE = [
-    "What is the main topic of this document?",
-    "Write a short summary of this document.",
-    "What is the key contribution described in this document?",
-    "What problem does this document address?",
-    "What methods or techniques are proposed in this document?",
-    "What are the main conclusions or findings of this document?",
-    "What limitations does this document acknowledge?",
-    "What assumptions does this document make?",
-    "What datasets or benchmarks are used in this document?",
-    "How does this document evaluate its proposed solution?",
-    "What baseline methods does this document compare against?",
-    "What are the computational requirements described in this document?",
-    "What future work does this document suggest?",
-    "In one sentence, what is this document about?",
-    "Name the three most important concepts in this document.",
-    "What is the biggest open question left by this document?",
-]
-
-# ── load contexts ─────────────────────────────────────────────────────────────
-
 # ─── LOAD CONTEXTS ────────────────────────────────────────────────────────────
 
 def load_contexts(context_dir):
@@ -75,8 +56,7 @@ def load_contexts(context_dir):
             print(f"  Loaded: {context_id} ({len(text)} chars)")
     return contexts
 
-# ── request list builders ─────────────────────────────────────────────────────
-
+# 
 def build_request_list(contexts: dict, questions: list, seed: int) -> list:
     """One entry per (context, question) pair, shuffled with given seed."""
     pairs = [
@@ -106,7 +86,6 @@ def send_request(req):
     chunks = list(session.chat(req["question"]))
     latency = time.perf_counter() - start
 
-
     response = "".join(
         c for c in chunks
         if not c.startswith("\n\n(Response delay")
@@ -116,10 +95,7 @@ def send_request(req):
 # ── single-pass experiment ────────────────────────────────────────────────────
 
 def run_single_pass(requests: list, pass_label: str) -> list:
-    """
-    Send every request in `requests` once, in order.
-    Returns list of result dicts.
-    """
+    """Send every request in `requests` once, in order."""
     print(f"\n  --- {pass_label} ({len(requests)} requests) ---")
     results = []
     for i, req in enumerate(requests):
@@ -178,14 +154,18 @@ def summarise(results: list, label: str, total_time: float) -> dict:
     }
 
 
-def experiment_single(contexts, questions, cache_label, output_dir):
-    """
-    """
-    label    = f"{cache_label}_single"
-    requests = build_request_list(contexts, questions, seed=42)
+def get_trial_seed(base_seed: int, trial: int) -> int:
+    """Return a unique seed for a trial, keeping pseudo‑independence."""
+    return base_seed + trial * 1000   # arbitrary offset
+
+
+def experiment_single(contexts, questions, cache_label, output_dir, trial=1):
+    label = f"{cache_label}_single_trial{trial}"
+    seed = get_trial_seed(42, trial)
+    requests = build_request_list(contexts, questions, seed)
 
     print(f"\n{'='*65}")
-    print(f"RUN A — Single Pass   |  cache={cache_label}")
+    print(f"RUN A — Single Pass   |  cache={cache_label}  |  trial {trial}")
     print(f"{'='*65}")
 
     t0      = time.perf_counter()
@@ -197,29 +177,26 @@ def experiment_single(contexts, questions, cache_label, output_dir):
     return results, summary
 
 
-def experiment_repeat(contexts, questions, cache_label, output_dir):
-
-    label    = f"{cache_label}_repeat"
-    requests = build_request_list(contexts, questions, seed=42)
+def experiment_repeat(contexts, questions, cache_label, output_dir, trial=1, run_type="repeat"):
+    label = f"{cache_label}_{run_type}_trial{trial}"
+    base_seed = 42 if run_type == "repeat" else 123   # different base for diverse repeat
+    seed = get_trial_seed(base_seed, trial)
+    requests = build_request_list(contexts, questions, seed)
 
     print(f"\n{'='*65}")
-    print(f"RUN B — Repeat (Cache-Hit)  |  cache={cache_label}")
+    print(f"RUN B — Repeat (Cache-Hit)  |  cache={cache_label}  |  run={run_type}  |  trial {trial}")
     print(f"{'='*65}")
     print("  Pass 1: cold cache ")
     print("  Pass 2: warm cache ")
 
     t0 = time.perf_counter()
-
     results_p1 = run_single_pass(requests, pass_label="pass1_cold")
-
     results_p2 = run_single_pass(requests, pass_label="pass2_warm")
-
     total = time.perf_counter() - t0
 
     all_results = results_p1 + results_p2
     summary     = summarise(all_results, label, total)
 
-    # extra per-pass summaries printed for convenience
     ok1 = [r for r in results_p1 if r["latency"] is not None]
     ok2 = [r for r in results_p2 if r["latency"] is not None]
     if ok1 and ok2:
@@ -235,17 +212,17 @@ def experiment_repeat(contexts, questions, cache_label, output_dir):
     return all_results, summary
 
 
-def experiment_diverse(contexts, questions, cache_label, output_dir):
-
-    label    = f"{cache_label}_diverse"
-    requests = build_request_list(contexts, questions, seed=123)
+def experiment_diverse(contexts, questions, cache_label, output_dir, trial=1, run_type="diverse"):
+    label = f"{cache_label}_{run_type}_trial{trial}"
+    seed = get_trial_seed(123, trial)
+    requests = build_request_list(contexts, questions, seed)
 
     print(f"\n{'='*65}")
-    print(f"RUN C — Diverse (seed=123)  |  cache={cache_label}")
+    print(f"RUN C — {run_type.upper()}  |  cache={cache_label}  |  trial {trial}")
     print(f"{'='*65}")
 
     t0      = time.perf_counter()
-    results = run_single_pass(requests, pass_label="pass1_diverse")
+    results = run_single_pass(requests, pass_label=f"pass1_{run_type}")
     total   = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
@@ -270,34 +247,108 @@ def save(results: list, summary: dict, label: str, output_dir: str):
     print(f"  Saved results → {rpath}")
     print(f"  Saved summary → {spath}")
 
-def main():
 
+def save_averaged_summary(avg_summary: dict, label: str, output_dir: str):
+    """Save a final averaged summary (no trial number)."""
+    os.makedirs(output_dir, exist_ok=True)
+    spath = os.path.join(output_dir, f"{label}_avg_summary.json")
+    with open(spath, "w") as f:
+        json.dump(avg_summary, f, indent=2)
+    print(f"  Saved averaged summary → {spath}")
+
+# ── average trial summaries ───────────────────────────────────────────────────
+
+def average_trial_summaries(summary_list: list, base_label: str) -> dict:
+    first = summary_list[0]
+    n = len(summary_list)
+    avg = {
+        "label": base_label,
+        "num_requests": first["num_requests"],
+        "num_successful": first["num_successful"],
+        "total_time_sec": sum(s["total_time_sec"] for s in summary_list) / n,
+        "throughput_req_per_sec": sum(s["throughput_req_per_sec"] for s in summary_list) / n,
+        "avg_latency_sec": sum(s["avg_latency_sec"] for s in summary_list) / n,
+    }
+    return avg
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main():
     parser = argparse.ArgumentParser(description="IK2221 Request Generator")
-    parser.add_argument("--context-dir", type=Path, default=BASE_DIR / "frontend" / "data")
-    parser.add_argument("--mode", choices=["single", "repeat", "diverse", "all"], default="all")
+    parser.add_argument("--context-dir", type=Path, default=BASE_DIR / "frontend" / "data",
+                        help="Normal context folder")
+    parser.add_argument("--context-dir-expanded", type=Path,
+                        default=BASE_DIR / "frontend" / "data_expanded",
+                        help="Expanded context folder for high‑diversity runs")
+    parser.add_argument("--mode", choices=["single", "repeat", "diverse",
+                                           "diverse_more_contexts",
+                                           "diverse_more_repeat",
+                                           "all"],
+                        default="all")
     parser.add_argument("--cache-label", default="cache_XGB")
     parser.add_argument("--output-dir", default="results")
+    parser.add_argument("--trials", type=int, default=3,
+                        help="Number of trials per experiment")
     args = parser.parse_args()
 
     print(f"\n{'='*65}")
     print(f"  IK2221 Request Generator")
-    print(f"  Mode:        {args.mode}")
     print(f"  Cache label: {args.cache_label}")
-    print(f"  Context dir: {args.context_dir}")
-    print(f"  Output dir:  {args.output_dir}")
+    print(f"  Normal ctx : {args.context_dir}")
+    print(f"  Expanded ctx: {args.context_dir_expanded}")
+    print(f"  Mode       : {args.mode}")
+    print(f"  Trials     : {args.trials}")
+    print(f"  Output dir : {args.output_dir}")
     print(f"{'='*65}")
 
+    # Load normal contexts
     contexts = load_contexts(args.context_dir)
-    print(f"\nLoaded {len(contexts)} context file(s).")
+    print(f"\nLoaded {len(contexts)} normal context file(s).")
 
+    # Load expanded contexts if needed
+    contexts_expanded = None
+    if args.mode in ("diverse_more_contexts", "diverse_more_repeat", "all"):
+        if args.context_dir_expanded.exists():
+            contexts_expanded = load_contexts(args.context_dir_expanded)
+            print(f"Loaded {len(contexts_expanded)} expanded context file(s).")
+        else:
+            print("WARNING: expanded context dir not found; skipping those runs.")
+            # Disable those modes
+            if args.mode == "diverse_more_contexts":
+                return
+            if args.mode == "diverse_more_repeat":
+                return
+
+    # Helper to run an experiment multiple trials and save averaged summary
+    def run_trials(exp_func, ctx, qs, label, run_type=None):
+        trial_summaries = []
+        for trial in range(1, args.trials+1):
+            if run_type is None:
+                res, summ = exp_func(ctx, qs, args.cache_label, args.output_dir, trial=trial)
+            else:
+                res, summ = exp_func(ctx, qs, args.cache_label, args.output_dir,
+                                     trial=trial, run_type=run_type)
+            trial_summaries.append(summ)
+        avg = average_trial_summaries(trial_summaries, f"{args.cache_label}_{run_type if run_type else 'single'}_avg")
+        save_averaged_summary(avg, f"{args.cache_label}_{run_type if run_type else 'single'}_avg", args.output_dir)
+
+    # Execute requested modes
     if args.mode in ("single", "all"):
-        experiment_single(contexts, QUESTIONS, args.cache_label, args.output_dir)
+        run_trials(experiment_single, contexts, QUESTIONS, "single")
 
     if args.mode in ("repeat", "all"):
-        experiment_repeat(contexts, QUESTIONS, args.cache_label, args.output_dir)
+        run_trials(experiment_repeat, contexts, QUESTIONS, "repeat", run_type="repeat")
 
     if args.mode in ("diverse", "all"):
-        experiment_diverse(contexts, QUESTIONS_DIVERSE, args.cache_label, args.output_dir)
+        run_trials(experiment_diverse, contexts, QUESTIONS, "diverse", run_type="diverse")
+
+    if args.mode in ("diverse_more_contexts", "all") and contexts_expanded:
+        run_trials(experiment_diverse, contexts_expanded, QUESTIONS, "diverse_more_contexts",
+                   run_type="diverse_more_contexts")
+
+    if args.mode in ("diverse_more_repeat", "all") and contexts_expanded:
+        run_trials(experiment_repeat, contexts_expanded, QUESTIONS, "diverse_more_repeat",
+                   run_type="diverse_more_repeat")
 
     print(f"\n✓ Done. Results saved in '{args.output_dir}/'")
 
