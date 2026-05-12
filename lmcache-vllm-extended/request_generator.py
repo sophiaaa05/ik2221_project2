@@ -36,8 +36,6 @@ QUESTIONS = [
     "What is the key contribution described in this document?",
     "What problem does this document address?",
     "What methods or techniques are proposed in this document?",
-    "What are the main conclusions or findings of this document?",
-    "What limitations does this document acknowledge?",
 ]
 
 def make_client(ip: str, port: int) -> tuple:
