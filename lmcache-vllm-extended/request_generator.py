@@ -11,10 +11,11 @@ import time
 import json
 import random
 import argparse
+import requests
 from datetime import datetime
 
 
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "lmcache-vllm-extended", "frontend")
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
 sys.path.insert(0, FRONTEND_DIR)
 from chat_session import ChatSession
 
@@ -22,6 +23,8 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
+LLM_BATCH_URL = "http://127.0.0.1:8000/v2/chat/completions"
+MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 IP   = "127.0.0.1"
 PORT = 8000
 
@@ -57,15 +60,20 @@ def load_contexts(context_dir):
 def generate_requests(contexts, questions, repeat=1):
     """Generate shuffled list of (context_id, context_text, question) tuples."""
     requests_list = []
+    request_id = 0
+
     for context_id, context_text in contexts.items():
         for question in questions:
             for _ in range(repeat):
                 requests_list.append({
+                    "request_id":   request_id,
                     "context_id":   context_id,
                     "context_text": context_text,
                     "question":     question,
                     "prompt_len":   len(context_text) + len(question),
                 })
+                request_id += 1
+
     random.shuffle(requests_list)
     return requests_list
 
@@ -89,43 +97,114 @@ def send_request(req):
     return response, latency
 
 
-def run_experiment(requests_list, label):
+def send_batch_request(batch, timeout=200):
+    payloads = []
+    for req in batch:
+        payloads.append({
+            "model": MODEL_NAME,
+            "request_id": req["request_id"],
+            "context_id": req["context_id"],
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": req["context_text"]},
+                {"role": "user", "content": req["question"]},
+            ],
+            "max_tokens": 200,
+            "temperature": 0.0,
+        })
+    
+    start = time.perf_counter()
+    resp = requests.post(LLM_BATCH_URL, json=payloads, timeout=timeout)
+    latency = time.perf_counter() - start
+
+    if not resp.ok:
+        raise RuntimeError(f"{resp.status_code} {resp.text}")
+
+    resp.raise_for_status()
+
+    responses = {}
+    for res in resp.json():
+        body = res["response"]
+        if "choices" not in body:
+            raise RuntimeError(f"Unexpected batch response item: {res}")
+        responses[res["request_id"]] = body["choices"][0]["message"]["content"]
+
+    return responses, latency
+
+def run_experiment(requests_list, label, batch_size=1):
     """Send all requests sequentially."""
     print(f"\n{'='*60}")
     print(f"Experiment: {label}  |  {len(requests_list)} requests")
     print(f"{'='*60}")
-
     results = []
     experiment_start = time.perf_counter()
 
-    for i, req in enumerate(requests_list):
-        print(f"  [{i+1}/{len(requests_list)}] "
-              f"context={req['context_id']} "
-              f"prompt_len={req['prompt_len']} ... ",
-              end="", flush=True)
-        try:
-            response, latency = send_request(req)
-            print(f"{latency:.2f}s")
-            results.append({
-                "index":      i,
-                "context_id": req["context_id"],
-                "question":   req["question"],
-                "prompt_len": req["prompt_len"],
-                "latency":    latency,
-                "response":   response,
-                "error":      None,
-            })
-        except Exception as e:
-            print(f"ERROR: {e}")
-            results.append({
-                "index":      i,
-                "context_id": req["context_id"],
-                "question":   req["question"],
-                "prompt_len": req["prompt_len"],
-                "latency":    None,
-                "response":   None,
-                "error":      str(e),
-            })
+    if batch_size <= 1:
+        for i, req in enumerate(requests_list):
+            print(f"  [{i+1}/{len(requests_list)}] "
+                f"context={req['context_id']} "
+                f"prompt_len={req['prompt_len']} ... ",
+                end="", flush=True)
+            try:
+                response, latency = send_request(req)
+                print(f"{latency:.2f}s")
+                results.append({
+                    "index":      i,
+                    "context_id": req["context_id"],
+                    "question":   req["question"],
+                    "prompt_len": req["prompt_len"],
+                    "latency":    latency,
+                    "response":   response,
+                    "error":      None,
+                })
+            except Exception as e:
+                print(f"ERROR: {e}")
+                results.append({
+                    "index":      i,
+                    "context_id": req["context_id"],
+                    "question":   req["question"],
+                    "prompt_len": req["prompt_len"],
+                    "latency":    None,
+                    "response":   None,
+                    "error":      str(e),
+                })
+    else:
+        # Splitting the requests into batches
+        batches = [requests_list[i:i+batch_size] for i in range(0, len(requests_list), batch_size)]
+
+        req_idx = 0 
+        for batch_i, batch in enumerate(batches):
+            print(f"  [{batch_i+1}/{len(batches)}] "
+                f"Batch size={len(batch)} ... ",
+                end="", flush=True)
+            try:
+                responses, latency = send_batch_request(batch)
+                print(f"{latency:.2f}s")
+
+                for req in batch:
+                    results.append({
+                        "index":      req_idx,
+                        "context_id": req["context_id"],
+                        "question":   req["question"],
+                        "prompt_len": req["prompt_len"],
+                        "latency":    latency,
+                        "response":   responses[req["request_id"]],
+                        "error":      None,
+                    })
+                    req_idx += 1
+            except Exception as e:
+                print(f"ERROR in batch: {e}")
+                for req in batch:
+                    results.append({
+                        "index":      req_idx,
+                        "context_id": req["context_id"],
+                        "question":   req["question"],
+                        "prompt_len": req["prompt_len"],
+                        "latency":    None,
+                        "response":   None,
+                        "error":      str(e),
+                    })
+                    req_idx += 1
 
     total_time = time.perf_counter() - experiment_start
     successful = [r for r in results if r["latency"] is not None]
@@ -133,6 +212,7 @@ def run_experiment(requests_list, label):
     avg_latency = sum(r["latency"] for r in successful) / len(successful) if successful else 0
 
     print(f"\n--- Summary: {label} ---")
+    print(f"  Batch size:   {batch_size}")
     print(f"  Total time:   {total_time:.2f}s")
     print(f"  Successful:   {len(successful)}/{len(results)}")
     print(f"  Throughput:   {throughput:.3f} req/s")
@@ -146,8 +226,8 @@ def run_experiment(requests_list, label):
         "throughput_req_per_sec": throughput,
         "avg_latency_sec":        avg_latency,
     }
+    
     return results, summary
-
 
 
 def save_results(results, summary, label, output_dir="results"):
@@ -180,6 +260,8 @@ def main():
                         help="Folder to save result JSON files")
     parser.add_argument("--label", default="experiment",
                         help="Label for this run")
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="Batch size for request processing")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -191,8 +273,7 @@ def main():
     requests_list = generate_requests(contexts, QUESTIONS, repeat=args.repeat)
     print(f"Generated {len(requests_list)} requests (shuffled).")
 
-
-    results, summary = run_experiment(requests_list, label=args.label)
+    results, summary = run_experiment(requests_list, label=args.label, batch_size=args.batch_size)
 
     print(f"\nSaving results to: {args.output_dir}/")
     save_results(results, summary, label=args.label, output_dir=args.output_dir)
