@@ -40,10 +40,6 @@ QUESTIONS = [
     "What limitations does this document acknowledge?",
 ]
 
-# ── shared OpenAI client ──────────────────────────────────────────────────────
-# Created once so model listing overhead is paid only at startup,
-# not on every request (which would inflate latency measurements).
-
 def make_client(ip: str, port: int) -> tuple:
     client = OpenAI(
         api_key="EMPTY",
@@ -92,7 +88,6 @@ def build_diverse_request_list(contexts: dict, questions: list, seed: int,
     random.seed(seed)
     pairs = []
     
-    # ADD THIS LOOP so it generates 98 requests instead of 7
     num_iterations = len(ctx_items) 
     for _ in range(num_iterations):
         for q in questions:
@@ -135,17 +130,20 @@ def send_request(req: dict, client: OpenAI, model_id: str) -> tuple:
         stop="\n",
     )
 
-    chunks = []
     for chunk in stream:
         content = chunk.choices[0].delta.content
         if content is not None:
             if ttft is None:
                 ttft = time.perf_counter() - start
-            chunks.append(content)
 
     latency  = time.perf_counter() - start
-    response = "".join(chunks)
-    return response, latency, ttft
+    if ttft is None:
+        raise RuntimeError("No generation tokens received")
+    return latency, ttft
+
+
+def format_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
 
 # ── single pass ───────────────────────────────────────────────────────────────
 def run_single_pass(requests: list, pass_label: str,
@@ -159,31 +157,24 @@ def run_single_pass(requests: list, pass_label: str,
               f"len={req['prompt_len']:>6} chars ... ",
               end="", flush=True)
         try:
-            response, latency, ttft = send_request(req, client, model_id)
+            latency, ttft = send_request(req, client, model_id)
             print(f"{latency:.3f}s  (ttft={ttft:.3f}s)")
             results.append({
                 "pass":       pass_label,
-                "index":      i,
-                "context_id": req["context_id"],
-                "question":   req["question"],
                 "prompt_len": req["prompt_len"],
                 "latency":    latency,
                 "ttft":       ttft,
-                "response":   response,
                 "error":      None,
             })
         except Exception as e:
-            print(f"ERROR — {e}")
+            error_text = format_error(e)
+            print(f"ERROR: {error_text}")
             results.append({
                 "pass":       pass_label,
-                "index":      i,
-                "context_id": req["context_id"],
-                "question":   req["question"],
                 "prompt_len": req["prompt_len"],
                 "latency":    None,
                 "ttft":       None,
-                "response":   None,
-                "error":      str(e),
+                "error":      error_text,
             })
     return results
 
@@ -205,31 +196,24 @@ def run_repeat_pass(requests: list, client: OpenAI, model_id: str) -> list:
 
         for pass_label in ("cold", "warm"):
             try:
-                response, latency, ttft = send_request(req, client, model_id)
+                latency, ttft = send_request(req, client, model_id)
                 print(f"  {pass_label}={latency:.3f}s", end="", flush=True)
                 results.append({
                     "pass":       pass_label,
-                    "index":      i,
-                    "context_id": req["context_id"],
-                    "question":   req["question"],
                     "prompt_len": req["prompt_len"],
                     "latency":    latency,
                     "ttft":       ttft,
-                    "response":   response,
                     "error":      None,
                 })
             except Exception as e:
-                print(f"  {pass_label}=ERROR({e})", end="", flush=True)
+                error_text = format_error(e)
+                print(f"  {pass_label}=ERROR({error_text})", end="", flush=True)
                 results.append({
                     "pass":       pass_label,
-                    "index":      i,
-                    "context_id": req["context_id"],
-                    "question":   req["question"],
                     "prompt_len": req["prompt_len"],
                     "latency":    None,
                     "ttft":       None,
-                    "response":   None,
-                    "error":      str(e),
+                    "error":      error_text,
                 })
         print()
     return results

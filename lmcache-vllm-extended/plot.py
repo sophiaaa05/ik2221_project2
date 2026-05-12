@@ -1,363 +1,291 @@
 """
-IK2221 Task 1 - Plotting Script
-Reads both old single-trial and new multi-trial averaged summary files.
+=======================================================
+Plots cache comparison for ALL cache sizes automatically.
+Directly answers the assignment questions by plotting:
+1. Throughput (Req/s)
+2. Total Latency (Response Time)
+3. TTFT (Prefill Time - Advanced Insight)
+
+Usage:
+    python plot.py --results-dir results --output-dir plots
 """
 
 import os
-import re
 import json
+import re
 import argparse
-import numpy as np
+from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from glob import glob
+import numpy as np
 
-CACHE_SIZES = ["0GB",  "1GB", "2GB", "4GB",  "8GB"]
+# =====================================================
+# Matplotlib Pro Styling
+# =====================================================
+plt.rcParams.update({
+    "figure.dpi": 150,
+    "font.family": "sans-serif",
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "axes.grid": True,
+    "grid.alpha": 0.4,
+    "grid.linestyle": "--",
+})
 
-SIZE_LABELS = {
-    "0GB": "0GB", "0p5GB": "0.5GB", "1GB": "1GB", "2GB": "2GB",
-    "3GB": "3GB", "4GB": "4GB",     "6GB": "6GB", "8GB": "8GB"
-}
+COLORS = plt.cm.tab10.colors
 
-RUN_TYPES = ["single", "repeat", "diverse", "diverse_more_contexts", "diverse_more_repeat"]
-
-COLORS = {
-    "single":                "#2196F3",
-    "repeat":                "#4CAF50",
-    "diverse":               "#FF5722",
-    "diverse_more_contexts": "#9C27B0",
-    "diverse_more_repeat":   "#FF9800",
-}
-
-RUN_LABELS = {
-    "single":                "Single (low diversity)",
-    "repeat":                "Repeat (cache hit)",
-    "diverse":               "Diverse (different order)",
-    "diverse_more_contexts": "Diverse (more contexts)",
-    "diverse_more_repeat":   "Diverse more (repeated)",
-}
-
-# ── Load summaries — reads BOTH old and new format ───────────────────────────
-
-def load_summaries(results_dir):
-    """
-    Priority: averaged summary (_avg_summary.json) > single trial summary.
-    This way old results still show up if no averaged version exists.
-    """
-    summaries = {}
-
-    # Pattern for new averaged files: cache_4GB_single_avg_summary.json
-    avg_pattern = re.compile(
-        r'cache_(\w+GB)_(single|repeat|diverse|diverse_more_contexts|diverse_more_repeat)_avg_summary\.json'
-    )
-    # Pattern for old single-trial files: cache_4GB_single_20260511_..._summary.json
-    old_pattern = re.compile(
-        r'cache_(\w+GB)_(single|repeat|diverse|diverse_more_contexts|diverse_more_repeat)_\d{8}_\d{6}_summary\.json'
-    )
-
-    # Load old format first (lower priority)
-    for fpath in sorted(glob(os.path.join(results_dir, "*_summary.json"))):
-        fname = os.path.basename(fpath)
-        m = old_pattern.match(fname)
-        if not m:
-            continue
-        size, rtype = m.groups()
-        with open(fpath) as f:
+# =====================================================
+# File Loading (Results & Summaries)
+# =====================================================
+def load_result_files(results_dir):
+    files = sorted(Path(results_dir).glob("*_results.json"))
+    all_data = []
+    for file in files:
+        with open(file, "r", encoding="utf-8") as f:
             data = json.load(f)
-        key = (size, rtype)
-        if key not in summaries:  # don't overwrite if already loaded
-            summaries[key] = data
-            print(f"  Loaded old summary:  {size:8s} {rtype}")
-
-    # Load new averaged format (higher priority — overwrites old)
-    for fpath in sorted(glob(os.path.join(results_dir, "*_avg_summary.json"))):
-        fname = os.path.basename(fpath)
-        m = avg_pattern.match(fname)
-        if not m:
-            continue
-        size, rtype = m.groups()
-        with open(fpath) as f:
-            data = json.load(f)
-        summaries[(size, rtype)] = data  # always overwrite with averaged
-        print(f"  Loaded avg summary:  {size:8s} {rtype}")
-
-    return summaries
-
-
-# ── Load per-request results — reads BOTH old and new format ─────────────────
-
-def load_all_results(results_dir):
-    """
-    Combines trial results files AND old single-run results files.
-    """
-    all_data = {}
-
-    # New format: cache_4GB_single_trial1_20260511_results.json
-    trial_pattern = re.compile(
-        r'cache_(\w+GB)_(single|repeat|diverse|diverse_more_contexts|diverse_more_repeat)_trial\d+_.*_results\.json'
-    )
-    # Old format: cache_4GB_single_20260511_..._results.json
-    old_pattern = re.compile(
-        r'cache_(\w+GB)_(single|repeat|diverse|diverse_more_contexts|diverse_more_repeat)_\d{8}_\d{6}_results\.json'
-    )
-
-    for fpath in sorted(glob(os.path.join(results_dir, "*_results.json"))):
-        fname = os.path.basename(fpath)
-        m = trial_pattern.match(fname) or old_pattern.match(fname)
-        if not m:
-            continue
-        size, rtype = m.groups()
-        with open(fpath) as f:
-            data = json.load(f)
-        key = (size, rtype)
-        if key not in all_data:
-            all_data[key] = []
-        all_data[key].extend(data)
-        print(f"  Loaded results:      {size:8s} {rtype} ({len(data)} records)")
-
+        all_data.append({"filename": file.name, "data": data})
     return all_data
 
+def load_summary_files(results_dir):
+    files = sorted(Path(results_dir).glob("*_summary.json"))
+    summaries = []
+    for file in files:
+        with open(file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        summaries.append({"filename": file.name, "data": data})
+    return summaries
 
-# ── GRAPH 1: Cache size vs Avg Latency ───────────────────────────────────────
+def get_cache_size_int(filename):
+    match = re.search(r"cache_(\d+)GB", filename)
+    return int(match.group(1)) if match else -1
 
-def plot_cache_vs_latency(summaries, output_dir):
-    fig, ax = plt.subplots(figsize=(10, 5))
+def get_cache_label(filename):
+    size = get_cache_size_int(filename)
+    return f"{size}GB Cache" if size != -1 else "0GB Cache"
 
-    for rtype in RUN_TYPES:
-        latencies   = []
-        xlabels     = []
-        for size in CACHE_SIZES:
-            if (size, rtype) in summaries:
-                latencies.append(summaries[(size, rtype)]["avg_latency_sec"])
-                xlabels.append(SIZE_LABELS[size])
-        if latencies:
-            ax.plot(xlabels, latencies, marker="o",
-                    label=RUN_LABELS[rtype], color=COLORS[rtype], linewidth=2)
 
-    ax.set_xlabel("Local Cache Size", fontsize=12)
-    ax.set_ylabel("Average Latency (s)", fontsize=12)
-    ax.set_title("Cache Size vs Average Latency", fontsize=14)
+# =====================================================
+# OVERALL THROUGHPUT (Req / sec)
+# =====================================================
+def plot_throughput(summaries, output_dir):
+    results = {}
+    for item in summaries:
+        # We use the 'single' pass as the standard baseline for throughput
+        if "single" not in item["filename"]: continue
+        cache = get_cache_label(item["filename"])
+        results[cache] = item["data"].get("throughput_req_per_sec", 0)
+
+    if not results: return
+    
+    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+    throughputs = [results[c] for c in sorted_caches]
+
+    plt.figure(figsize=(9, 6))
+    bars = plt.bar(sorted_caches, throughputs, color="#3F51B5", edgecolor="black", alpha=0.8)
+    
+    plt.xlabel("Local Cache Size", fontsize=11, fontweight='bold')
+    plt.ylabel("Throughput (Requests / Second)", fontsize=11, fontweight='bold')
+    plt.title("Overall System Throughput vs Cache Size", fontsize=14, pad=15)
+    
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.02, f"{yval:.2f}", ha='center', va='bottom', fontweight='bold')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "00_overall_throughput.png"))
+    plt.close()
+
+
+# =====================================================
+# Q1: Latency vs Sequence Length
+# =====================================================
+def plot_latency_vs_length(all_data, output_dir):
+    results = {}
+    for item in all_data:
+        if "single" not in item["filename"]: continue
+        cache = get_cache_label(item["filename"])
+        if cache not in results:
+            results[cache] = {"x": [], "y": []}
+
+        for row in item["data"]:
+            if row.get("latency") is not None:
+                results[cache]["x"].append(row["prompt_len"])
+                results[cache]["y"].append(row["latency"])
+
+    if not results: return
+    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        plt.scatter(results[cache]["x"], results[cache]["y"], label=cache, alpha=0.7, color=COLORS[i%10])
+
+    plt.xlabel("Sequence Length (Characters)", fontsize=11, fontweight='bold')
+    plt.ylabel("Total Latency (Seconds)", fontsize=11, fontweight='bold')
+    plt.title("Q1: Latency vs Sequence Length", fontsize=14, pad=15)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "q1_latency_vs_length.png"))
+    plt.close()
+
+
+# =====================================================
+# Q2: Cold vs Warm Request (Total Latency AND TTFT)
+# =====================================================
+def plot_cold_vs_warm(all_data, output_dir):
+    results_latency = {}
+    results_ttft = {}
+    
+    for item in all_data:
+        if "repeat" not in item["filename"]: continue
+        cache = get_cache_label(item["filename"])
+        if cache not in results_latency:
+            results_latency[cache] = {"cold": [], "warm": []}
+            results_ttft[cache] = {"cold": [], "warm": []}
+
+        for row in item["data"]:
+            if row.get("pass") not in ["cold", "warm"]: continue
+            
+            if row.get("latency") is not None:
+                results_latency[cache][row["pass"]].append(row["latency"])
+            if row.get("ttft") is not None:
+                results_ttft[cache][row["pass"]].append(row["ttft"])
+
+    if not results_latency: return
+
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+    x = np.arange(len(sorted_caches))
+    width = 0.35
+
+    # --- OPTION A: Total Latency 
+    avg_cold_lat = [np.mean(results_latency[c]["cold"]) for c in sorted_caches]
+    avg_warm_lat = [np.mean(results_latency[c]["warm"]) for c in sorted_caches]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(x - width/2, avg_cold_lat, width, label='First Request (Cold)', color="#FF5722", edgecolor="black", alpha=0.85)
+    ax.bar(x + width/2, avg_warm_lat, width, label='Repeated Request (Warm)', color="#4CAF50", edgecolor="black", alpha=0.85)
+    ax.set_ylabel('Total Latency / Response Time (Seconds)', fontsize=11, fontweight='bold')
+    ax.set_xlabel('Local Cache Size', fontsize=11, fontweight='bold')
+    ax.set_title('Q2 Option A: Cold vs Warm (Total Latency)', fontsize=14, pad=15)
+    ax.set_xticks(x)
+    ax.set_xticklabels(sorted_caches)
     ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    out = os.path.join(output_dir, "cache_vs_latency.png")
-    plt.savefig(out, dpi=150)
+    fig.tight_layout()
+    fig.savefig(os.path.join(output_dir, "q2_optionA_Total_Latency.png"))
     plt.close()
-    print(f"Saved: {out}")
 
+    avg_cold_ttft = [np.mean(results_ttft[c]["cold"]) for c in sorted_caches]
+    avg_warm_ttft = [np.mean(results_ttft[c]["warm"]) for c in sorted_caches]
 
-# ── GRAPH 2: Cache size vs Throughput ────────────────────────────────────────
-
-def plot_cache_vs_throughput(summaries, output_dir):
-    fig, ax = plt.subplots(figsize=(10, 5))
-
-    for rtype in RUN_TYPES:
-        throughputs = []
-        xlabels     = []
-        for size in CACHE_SIZES:
-            if (size, rtype) in summaries:
-                throughputs.append(summaries[(size, rtype)]["throughput_req_per_sec"])
-                xlabels.append(SIZE_LABELS[size])
-        if throughputs:
-            ax.plot(xlabels, throughputs, marker="o",
-                    label=RUN_LABELS[rtype], color=COLORS[rtype], linewidth=2)
-
-    ax.set_xlabel("Local Cache Size", fontsize=12)
-    ax.set_ylabel("Throughput (req/s)", fontsize=12)
-    ax.set_title("Cache Size vs Throughput", fontsize=14)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(x - width/2, avg_cold_ttft, width, label='First Request (Cold)', color="#FF9800", edgecolor="black", alpha=0.85)
+    ax.bar(x + width/2, avg_warm_ttft, width, label='Repeated Request (Warm)', color="#8BC34A", edgecolor="black", alpha=0.85)
+    ax.set_ylabel('Prefill Time / TTFT (Seconds)', fontsize=11, fontweight='bold')
+    ax.set_xlabel('Local Cache Size', fontsize=11, fontweight='bold')
+    ax.set_title('Q2 Option B: Cold vs Warm (TTFT / Prefill Time)', fontsize=14, pad=15)
+    ax.set_xticks(x)
+    ax.set_xticklabels(sorted_caches)
     ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    out = os.path.join(output_dir, "cache_vs_throughput.png")
-    plt.savefig(out, dpi=150)
+    fig.tight_layout()
+    fig.savefig(os.path.join(output_dir, "q2_optionB_TTFT.png"))
     plt.close()
-    print(f"Saved: {out}")
 
 
-# ── GRAPH 3: Sequence Length vs Latency ──────────────────────────────────────
+# =====================================================
+# Q3: Diversity vs Performance 
+# =====================================================
+def plot_diversity_vs_latency(all_data, output_dir):
+    results_latency = {}
+    results_ttft = {}
 
-def plot_seqlen_vs_latency(all_results, output_dir):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sizes_present = [s for s in CACHE_SIZES if (s, "single") in all_results]
-    colors = cm.viridis(np.linspace(0, 1, len(sizes_present)))
+    for item in all_data:
+        if "diverse_n" not in item["filename"]: continue
+        cache = get_cache_label(item["filename"])
+        
+        if cache not in results_latency:
+            results_latency[cache] = {}
+            results_ttft[cache] = {}
 
-    for i, size in enumerate(sizes_present):
-        data = all_results[(size, "single")]
-        xs = [r["prompt_len"] for r in data if r["latency"] is not None]
-        ys = [r["latency"]    for r in data if r["latency"] is not None]
-        ax.scatter(xs, ys, alpha=0.4, s=20, color=colors[i],
-                   label=f"{SIZE_LABELS[size]} cache")
-        if len(xs) > 1:
-            z = np.polyfit(xs, ys, 1)
-            p = np.poly1d(z)
-            xs_s = sorted(xs)
-            ax.plot(xs_s, [p(x) for x in xs_s],
-                    color=colors[i], linewidth=1.5, alpha=0.8)
+        try:
+            n = int(item["filename"].split("diverse_n")[1][0])
+        except: continue
 
-    ax.set_xlabel("Prompt Length (characters)", fontsize=12)
-    ax.set_ylabel("Latency (s)", fontsize=12)
-    ax.set_title("Sequence Length vs Latency (Single Pass)", fontsize=14)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
+        lats, ttfts = [], []
+        for row in item["data"]:
+            if row.get("latency") is not None: lats.append(row["latency"])
+            if row.get("ttft") is not None: ttfts.append(row["ttft"])
+
+        if lats: results_latency[cache][n] = np.mean(lats)
+        if ttfts: results_ttft[cache][n] = np.mean(ttfts)
+
+    if not results_latency: return
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+
+    # --- OPTION A: Total Latency 
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        if not results_latency[cache]: continue
+        x = sorted(results_latency[cache].keys())
+        y = [results_latency[cache][i] for i in x]
+        plt.plot(x, y, marker="o", linewidth=2, markersize=8, label=cache, color=COLORS[i%10])
+
+    plt.xlabel("Number of Combined Contexts (Diversity)", fontsize=11, fontweight='bold')
+    plt.ylabel("Total Latency (Seconds)", fontsize=11, fontweight='bold')
+    plt.title("Q3 Option A: Diversity vs Total Latency", fontsize=14, pad=15)
+    plt.xticks([1, 2, 3])
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    out = os.path.join(output_dir, "seqlen_vs_latency.png")
-    plt.savefig(out, dpi=150)
+    plt.savefig(os.path.join(output_dir, "q3_optionA_Total_Latency.png"))
     plt.close()
-    print(f"Saved: {out}")
 
+    # --- OPTION B: TTFT 
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        if not results_ttft[cache]: continue
+        x = sorted(results_ttft[cache].keys())
+        y = [results_ttft[cache][i] for i in x]
+        plt.plot(x, y, marker="s", linewidth=2, markersize=8, label=cache, linestyle="--", color=COLORS[i%10])
 
-# ── GRAPH 4: Cache Hit Effect ─────────────────────────────────────────────────
-
-def plot_cache_hit_effect(all_results, output_dir):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    first_avgs  = []
-    repeat_avgs = []
-    improvements = []
-    xlabels     = []
-
-    for size in CACHE_SIZES:
-        if (size, "repeat") not in all_results:
-            continue
-        data = all_results[(size, "repeat")]
-        seen = {}
-        first_lats, repeat_lats = [], []
-        for r in data:
-            if r["latency"] is None:
-                continue
-            uid = (r["context_id"], r["question"])
-            if uid not in seen:
-                seen[uid] = True
-                first_lats.append(r["latency"])
-            else:
-                repeat_lats.append(r["latency"])
-        if first_lats and repeat_lats:
-            avg1 = np.mean(first_lats)
-            avg2 = np.mean(repeat_lats)
-            first_avgs.append(avg1)
-            repeat_avgs.append(avg2)
-            improvements.append((avg1 - avg2) / avg1 * 100)
-            xlabels.append(SIZE_LABELS[size])
-
-    if xlabels:
-        x = np.arange(len(xlabels))
-        width = 0.35
-        bars1 = ax.bar(x - width/2, first_avgs,  width,
-                       label="First occurrence",    color="#2196F3")
-        bars2 = ax.bar(x + width/2, repeat_avgs, width,
-                       label="Repeated occurrence", color="#4CAF50")
-
-        # Add % improvement labels on top
-        for xi, imp in zip(x, improvements):
-            ax.text(xi, max(first_avgs[list(x).index(xi)],
-                            repeat_avgs[list(x).index(xi)]) + 0.005,
-                    f"{imp:.1f}%", ha="center", fontsize=9, color="black")
-
-        ax.set_xticks(x)
-        ax.set_xticklabels(xlabels)
-        ax.set_xlabel("Local Cache Size", fontsize=12)
-        ax.set_ylabel("Average Latency (s)", fontsize=12)
-        ax.set_title("Cache Hit Effect: First vs Repeated Requests", fontsize=14)
-        ax.legend()
-        ax.grid(True, alpha=0.3, axis="y")
-
+    plt.xlabel("Number of Combined Contexts (Diversity)", fontsize=11, fontweight='bold')
+    plt.ylabel("Prefill Time / TTFT (Seconds)", fontsize=11, fontweight='bold')
+    plt.title("Q3 Option B: Diversity vs Prefill Time (TTFT)", fontsize=14, pad=15)
+    plt.xticks([1, 2, 3])
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    out = os.path.join(output_dir, "cache_hit_effect.png")
-    plt.savefig(out, dpi=150)
+    plt.savefig(os.path.join(output_dir, "q3_optionB_TTFT.png"))
     plt.close()
-    print(f"Saved: {out}")
 
 
-# ── GRAPH 5: Diversity Effect ─────────────────────────────────────────────────
-
-def plot_diversity_effect(summaries, output_dir):
-    fig, ax = plt.subplots(figsize=(10, 5))
-
-    lines = [
-        ("single",                "Low diversity (single order)",    "#2196F3"),
-        ("diverse",               "High diversity (different order)", "#FF5722"),
-        ("diverse_more_contexts", "High diversity (more contexts)",   "#9C27B0"),
-    ]
-
-    for rtype, label, color in lines:
-        latencies = []
-        xlabels   = []
-        for size in CACHE_SIZES:
-            if (size, rtype) in summaries:
-                latencies.append(summaries[(size, rtype)]["avg_latency_sec"])
-                xlabels.append(SIZE_LABELS[size])
-        if latencies:
-            ax.plot(xlabels, latencies, marker="o",
-                    label=label, color=color, linewidth=2)
-
-    ax.set_xlabel("Local Cache Size", fontsize=12)
-    ax.set_ylabel("Average Latency (s)", fontsize=12)
-    ax.set_title("Effect of Request Diversity on Latency", fontsize=14)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    out = os.path.join(output_dir, "diversity_effect.png")
-    plt.savefig(out, dpi=150)
-    plt.close()
-    print(f"Saved: {out}")
-
-def plot_seqlen_vs_latency_expanded(all_results, output_dir):
-    """Use diverse_more_contexts data which has wider prompt length range."""
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sizes_present = [s for s in CACHE_SIZES if (s, "diverse_more_contexts") in all_results]
-    colors = cm.viridis(np.linspace(0, 1, len(sizes_present)))
-
-    for i, size in enumerate(sizes_present):
-        data = all_results[(size, "diverse_more_contexts")]
-        xs = [r["prompt_len"] for r in data if r["latency"] is not None]
-        ys = [r["latency"]    for r in data if r["latency"] is not None]
-        ax.scatter(xs, ys, alpha=0.4, s=20, color=colors[i],
-                   label=f"{SIZE_LABELS[size]} cache")
-        if len(xs) > 1:
-            z = np.polyfit(xs, ys, 1)
-            p = np.poly1d(z)
-            xs_s = sorted(xs)
-            ax.plot(xs_s, [p(x) for x in xs_s],
-                    color=colors[i], linewidth=1.5, alpha=0.8)
-
-    ax.set_xlabel("Prompt Length (characters)", fontsize=12)
-    ax.set_ylabel("Latency (s)", fontsize=12)
-    ax.set_title("Sequence Length vs Latency (Expanded Contexts)", fontsize=14)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    out = os.path.join(output_dir, "seqlen_vs_latency_expanded.png")
-    plt.savefig(out, dpi=150)
-    plt.close()
-    print(f"Saved: {out}")
-
-
-# ── Main ──────────────────────────────────────────────────────────────────────
-
+# =====================================================
+# Main
+# =====================================================
 def main():
-    parser = argparse.ArgumentParser(description="IK2221 Task 1 - Plot Results")
-    parser.add_argument("--results-dir", default="results")
-    parser.add_argument("--output-dir",  default="plots")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--results-dir", default="results", help="Folder containing JSON files")
+    parser.add_argument("--output-dir", default="plots", help="Folder to save graphs")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
+    print(f"Reading results from: {args.results_dir}")
 
-    print("Loading summaries (old + averaged)...")
-    summaries = load_summaries(args.results_dir)
-    print(f"  Total: {len(summaries)} summaries loaded.")
+    all_data = load_result_files(args.results_dir)
+    summaries = load_summary_files(args.results_dir)
+    
+    if not all_data:
+        print("No result files found.")
+        return
 
-    print("\nLoading per-request results (old + trial)...")
-    all_results = load_all_results(args.results_dir)
-    print(f"  Total: {len(all_results)} (cache_size, run_type) combinations.")
+    print("Generating Throughput plot...")
+    plot_throughput(summaries, args.output_dir)
 
-    print("\nGenerating plots...")
-    plot_cache_vs_latency(summaries, args.output_dir)
-    plot_cache_vs_throughput(summaries, args.output_dir)
-    plot_seqlen_vs_latency(all_results, args.output_dir)
-    plot_cache_hit_effect(all_results, args.output_dir)
-    plot_diversity_effect(summaries, args.output_dir)
-    plot_seqlen_vs_latency_expanded(all_results, args.output_dir)
+    print("Generating Q1 plots...")
+    plot_latency_vs_length(all_data, args.output_dir)
+    
+    print("Generating Q2 plots...")
+    plot_cold_vs_warm(all_data, args.output_dir)
+    
+    print("Generating Q3 plots...")
+    plot_diversity_vs_latency(all_data, args.output_dir)
 
-    print(f"\nAll plots saved to: {args.output_dir}/")
+    print(f"\n✓ Done. All assignment-aligned graphs saved to '{args.output_dir}/'")
 
 if __name__ == "__main__":
     main()
