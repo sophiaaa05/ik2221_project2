@@ -383,6 +383,7 @@ class LMCacheEngine:
 
         if len(retrieved_kv_chunks) == 0:
             logging.info("Retrieved 0 chunks")
+            time.sleep(1) # simulate the extra cost of the prefill when we have cache misses
             self.miss_tokens_count += tokens.shape[0]
             ret_mask[:] = False
             return (), ret_mask

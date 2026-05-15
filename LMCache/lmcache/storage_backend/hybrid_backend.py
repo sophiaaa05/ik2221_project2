@@ -110,6 +110,9 @@ class LMCHybridBackend(LMCBackendInterface):
                 remote_queries.append(key)
                 remote_query_idxs.append(idx)
 
+        if remote_queries:
+            time.sleep(1) # simulate the network latency when using LMCache server      
+
         remote_query_results = self.remote_store.batched_get(remote_queries)
         for idx, key, result in zip(remote_query_idxs, remote_queries,
                                     remote_query_results):
