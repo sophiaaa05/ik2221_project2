@@ -1,2 +1,4 @@
 venv/
 kv-cache/
+data/*
+results/*
