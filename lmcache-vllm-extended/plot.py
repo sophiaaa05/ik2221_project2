@@ -313,7 +313,7 @@ def plot_batch(all_data, output_dir):
         plt.plot(x, y, marker="s", linewidth=2, markersize=8, label=cache, linestyle="--", color=COLORS[i%10])
 
     plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
-    plt.ylabel("Avg TTFT / Prefill Time (Seconds)", fontsize=11, fontweight='bold')
+    plt.ylabel("Avg TTFT (Seconds)", fontsize=11, fontweight='bold')
     plt.title("Batch Size vs TTFT", fontsize=14, pad=15)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
