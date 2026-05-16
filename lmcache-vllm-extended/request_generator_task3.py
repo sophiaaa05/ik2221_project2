@@ -167,7 +167,7 @@ def send_batch(requests, model_id):
     start = time.perf_counter()
 
     response = httpx.post(
-        f"http://{IP}:{PORT}/v2/chat/completions/batch",
+        f"http://{IP}:{PORT}/v2/chat/completions/rag",
         json=batch_payload,
         timeout=2000,
     )
