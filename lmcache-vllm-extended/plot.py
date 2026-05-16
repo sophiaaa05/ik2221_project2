@@ -54,13 +54,13 @@ def load_summary_files(results_dir):
         summaries.append({"filename": file.name, "data": data})
     return summaries
 
-def get_cache_size_int(filename):
-    match = re.search(r"cache_(\d+)GB", filename)
-    return int(match.group(1)) if match else -1
+def get_cache_size(filename):
+    match = re.search(r"cache_([\d.]+)GB", filename)
+    return match.group(1) if match else None
 
 def get_cache_label(filename):
-    size = get_cache_size_int(filename)
-    return f"{size}GB Cache" if size != -1 else "0GB Cache"
+    size = get_cache_size(filename)
+    return f"{size}GB Cache" if size else "unknown Cache"
 
 
 # =====================================================
@@ -76,7 +76,7 @@ def plot_throughput(summaries, output_dir):
 
     if not results: return
     
-    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results.keys(), key=lambda c: float(c.split('G')[0]))
     throughputs = [results[c] for c in sorted_caches]
 
     plt.figure(figsize=(9, 6))
@@ -112,7 +112,7 @@ def plot_latency_vs_length(all_data, output_dir):
                 results[cache]["y"].append(row["latency"])
 
     if not results: return
-    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results.keys(), key=lambda c: float(c.split('G')[0]))
 
     plt.figure(figsize=(10, 6))
     for i, cache in enumerate(sorted_caches):
@@ -151,7 +151,7 @@ def plot_cold_vs_warm(all_data, output_dir):
 
     if not results_latency: return
 
-    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: float(c.split('G')[0]))
     x = np.arange(len(sorted_caches))
     width = 0.35
 
@@ -217,7 +217,7 @@ def plot_diversity_vs_latency(all_data, output_dir):
         if ttfts: results_ttft[cache][n] = np.mean(ttfts)
 
     if not results_latency: return
-    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: float(c.split('G')[0]))
 
     # --- OPTION A: Total Latency 
     plt.figure(figsize=(10, 6))
