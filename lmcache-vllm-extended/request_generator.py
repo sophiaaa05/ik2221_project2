@@ -12,6 +12,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 import requests
+import yaml
 
 from openai import OpenAI
 
@@ -24,6 +25,18 @@ LLM_BATCH_URL = "http://127.0.0.1:8000/v2/chat/batched-completions"
 # ── config ────────────────────────────────────────────────────────────────────
 IP   = "127.0.0.1"
 PORT = 8000
+CONFIG_YAML = BASE_DIR / "configuration.yaml"
+
+def read_cache_label() -> str:
+    try:
+        with open(CONFIG_YAML, "r") as f:
+            cfg = yaml.safe_load(f)
+        size = cfg.get("max_local_cache_size")
+        if size is not None:
+            return f"cache_{size}GB"
+    except Exception:
+        pass
+    return "cache_default"
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. I will now give you a document and "
@@ -314,7 +327,8 @@ def summarise(results: list, label: str, total_time: float) -> dict:
     print(f"     Throughput : {thr:.4f} req/s")
     print(f"     Avg Latency: {avg_lat:.4f}s")
     print(f"     Avg TTFT   : {avg_ttft:.4f}s")
-    print(f"     Avg ctx matches/batch: {avg_matches:.2f}  (total: {total_matches})")
+    if matches_ok:
+        print(f"     Avg ctx matches/batch: {avg_matches:.2f}  (total: {total_matches})")
 
     summary = {
         "label": label,
@@ -324,9 +338,10 @@ def summarise(results: list, label: str, total_time: float) -> dict:
         "throughput_req_per_sec": thr,
         "avg_latency_sec": avg_lat,
         "avg_ttft_sec": avg_ttft,
-        "avg_ctx_matches_per_batch": avg_matches,
-        "total_ctx_matches": total_matches
     }
+    if matches_ok:
+        summary["avg_ctx_matches_per_batch"] = avg_matches
+        summary["total_ctx_matches"] = total_matches
 
     cold = [r for r in ok if r["pass"] == "cold"]
     warm = [r for r in ok if r["pass"] == "warm"]
@@ -467,10 +482,6 @@ def main():
                             "batch          - Q4: batch processing\n"
                             "all            - run all four"
                         ))
-    parser.add_argument("--cache-label", default="cache_default",
-                        help="Label for this cache config (e.g. cache_2GB)."
-                             "Used in filenames so runs with different cache "
-                             "sizes are kept separate.")
     parser.add_argument("--max-contexts", type=int, default=3,
                         help="Max number of contexts per request in diverse_sweep "
                              "(sweeps from n=1 up to this value, default: 3)")
@@ -483,10 +494,11 @@ def main():
     parser.add_argument("--ip",   default=IP)
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
+    cache_label = read_cache_label()
 
     print(f"\n{'='*65}")
     print(f"  IK2221 Request Generator")
-    print(f"  Cache label   : {args.cache_label}")
+    print(f"  Cache label   : {cache_label}")
     print(f"  Context dir   : {args.context_dir}")
     print(f"  Mode          : {args.mode}")
     print(f"  Batch size    : {args.batch_size}")
@@ -507,21 +519,21 @@ def main():
     print(f"Loaded {len(contexts)} context file(s).")
 
     if args.mode in ("single", "all"):
-        experiment_single(contexts, QUESTIONS, args.cache_label, args.output_dir,
+        experiment_single(contexts, QUESTIONS, cache_label, args.output_dir,
                           client, model_id)
 
     if args.mode in ("repeat", "all"):
-        experiment_repeat(contexts, QUESTIONS, args.cache_label, args.output_dir,
+        experiment_repeat(contexts, QUESTIONS, cache_label, args.output_dir,
                           client, model_id)
 
     if args.mode in ("diverse_sweep", "all"):
         max_n = min(args.max_contexts, len(contexts))
         for n in range(1, max_n + 1):
-            experiment_diverse(contexts, QUESTIONS, args.cache_label, args.output_dir,
+            experiment_diverse(contexts, QUESTIONS, cache_label, args.output_dir,
                                client, model_id, n_contexts=n)
 
     if args.mode in ("batch", "all"):
-        experiment_batch(contexts, QUESTIONS, args.cache_label, args.output_dir,
+        experiment_batch(contexts, QUESTIONS, cache_label, args.output_dir,
                          model_id, args.batch_size)
 
     print(f"\n Done. Results saved in '{args.output_dir}/'")
