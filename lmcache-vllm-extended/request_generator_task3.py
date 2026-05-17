@@ -15,9 +15,11 @@ import argparse
 import httpx
 import openai
 
+#Server connection settings
 IP   = "127.0.0.1"
 PORT = 8000
 
+# Paths for input data and output results; support env var overrides for flexibility
 DATA_DIR   = "lmcache-vllm-extended/frontend/data"
 OUTPUT_DIR = os.environ.get("RESULTS_DIR", "results")
 LABEL      = os.environ.get("RESULTS_LABEL", "task3_scheduled")
@@ -116,6 +118,10 @@ PAPER_QUESTIONS = {
 
 
 def load_contexts(data_dir, n_docs=None):
+    """
+    Read all .txt context files from data_dir into a dict keyed by context_id.
+    Each filename becomes the context_id used for RAG evaluation.
+    """
     contexts = {}
     for filename in sorted(os.listdir(data_dir)):
         if filename.endswith(".txt"):
@@ -124,6 +130,8 @@ def load_contexts(data_dir, n_docs=None):
             with open(filepath, "r", encoding="utf-8") as f:
                 contexts[context_id] = f.read().strip()
             print(f"  Loaded: {context_id}")
+
+    # Optionally cap the number of documents
     if n_docs is not None:
         contexts = dict(list(contexts.items())[:n_docs])
         print(f"  Using {len(contexts)} documents (--n-docs={n_docs})")
@@ -131,16 +139,21 @@ def load_contexts(data_dir, n_docs=None):
 
 
 def build_requests(contexts):
+    """
+    Create one request dict per (context, question) pair.
+    The full list is shuffled.
+    """
     requests = []
     for context_id, context_text in contexts.items():
         questions = PAPER_QUESTIONS.get(context_id, [
+            # Fallback questions for unknown/future papers
             f"What is the main topic of {TITLES.get(context_id, context_id)}?",
             f"What problem does {TITLES.get(context_id, context_id)} address?",
             f"What methods are proposed in {TITLES.get(context_id, context_id)}?",
         ])
         for question in questions:
             requests.append({
-                "context_id": context_id,
+                "context_id": context_id, # ground-truth label for evaluation
                 "question":   question,
             })
     random.shuffle(requests)
@@ -148,7 +161,8 @@ def build_requests(contexts):
 
 
 def send_batch(requests, model_id):
-    """Send all requests to the RAG scheduler as a single batch.
+    """
+    Send all requests to the RAG scheduler as a single batch.
     Only the question is sent — the server figures out the context via RAG.
     """
     batch_payload = {
@@ -273,11 +287,11 @@ def main():
         "num_docs":               len(contexts),
         "num_requests":           len(requests),
         "total_time_sec":         total_time,
-        "avg_latency_sec":        avg_latency,
+        "avg_latency_sec":        avg_latency,     # client-side: Total wall clock divided across all requests
         "throughput_req_per_sec": throughput,
         "rag_accuracy_pct":       accuracy,
         "avg_retrieval_time_sec": avg_retrieval,
-        "avg_inference_time_sec": avg_inference,
+        "avg_inference_time_sec": avg_inference,   # server-side: Time that it takes to LLM to process one equest
     }
 
     save_results(results, summary)

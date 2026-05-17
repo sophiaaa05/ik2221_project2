@@ -2,3 +2,4 @@ venv/
 kv-cache/
 data/*
 results/*
+plots3/*
