@@ -118,7 +118,7 @@ def plot_latency(summaries: list, output_dir: str) -> None:
 
     # retrieval near zero → label below; inference below total; total above
     _annotate_fixed(ax, n, retrieval, "{:.4f}s", color=COLORS[1],
-                    fontsize=8, offset=10, direction=-1)
+                    fontsize=8, offset=10, direction=1)
     _annotate_fixed(ax, n, inference, "{:.3f}s",  color=COLORS[2],
                     fontsize=8, offset=10, direction=-1)
     _annotate_fixed(ax, n, total,     "{:.3f}s",  color=COLORS[3],
@@ -128,7 +128,7 @@ def plot_latency(summaries: list, output_dir: str) -> None:
     ax.set_ylabel("Time (s)", fontsize=11)
     ax.set_xticks(n)
     ax.set_title("Latency vs Number of Documents", fontsize=13, pad=12)
-    ax.legend(fontsize=10, loc="upper left")
+    ax.legend(fontsize=10, loc="center right")
 
     os.makedirs(output_dir, exist_ok=True)
     out = Path(output_dir) / "ndocs_latency.png"
