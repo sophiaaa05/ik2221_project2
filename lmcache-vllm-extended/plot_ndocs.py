@@ -1,6 +1,8 @@
 """
 Plot accuracy, retrieval time, and inference time vs number of documents
-in the RAG database.
+in the RAG database. Produces two separate figures:
+  - ndocs_accuracy.png
+  - ndocs_latency.png
 
 Usage:
     python plot_ndocs.py --results-dir results --output-dir plots
@@ -37,7 +39,6 @@ def load_ndocs_summaries(results_dir: str) -> list:
         with open(path) as f:
             data = json.load(f)
         label = data.get("label", path.stem.replace("_summary", ""))
-        # Accept labels like ndocs_4, ndocs_14, docs_7, n_docs_10 …
         m = re.search(r"ndocs?[_\-]?(\d+)", label, re.IGNORECASE)
         if not m:
             continue
@@ -56,84 +57,81 @@ def load_ndocs_summaries(results_dir: str) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Annotation helper — flips label below the point when neighbours overlap
+# Annotation — fixed direction per line so labels never collide
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _annotate(ax, xs, ys, fmt, color, fontsize=8.5, base_offset=10):
-    fig = ax.get_figure()
-    fig.canvas.draw()
-    tr = ax.transData
-
-    disp_y    = [tr.transform((x, y))[1] for x, y in zip(xs, ys)]
-    prev_dy   = None
-    prev_sign = +1
-
-    for x, y, dy in zip(xs, ys, disp_y):
-        if prev_dy is not None and abs(dy - prev_dy) < 18:
-            sign = -prev_sign
-        else:
-            sign = +1
+def _annotate_fixed(ax, xs, ys, fmt, color, fontsize=8.5, offset=12, direction=1):
+    va = "bottom" if direction > 0 else "top"
+    for x, y in zip(xs, ys):
         ax.annotate(fmt.format(y), xy=(x, y),
-                    xytext=(0, sign * base_offset), textcoords="offset points",
-                    ha="center", va="bottom" if sign > 0 else "top",
-                    fontsize=fontsize, color=color)
-        prev_dy   = dy
-        prev_sign = sign
+                    xytext=(0, direction * offset), textcoords="offset points",
+                    ha="center", va=va, fontsize=fontsize, color=color)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Figure
+# Figure 1 — Accuracy
 # ─────────────────────────────────────────────────────────────────────────────
 
-def plot_ndocs(summaries: list, output_dir: str) -> None:
-    n        = [d["n_docs"]                for d in summaries]
-    acc      = [d["rag_accuracy_pct"]      for d in summaries]
-    retrieval= [d["avg_retrieval_time_sec"] for d in summaries]
-    inference= [d["avg_inference_time_sec"] for d in summaries]
-    total    = [d["avg_latency_sec"]        for d in summaries]
+def plot_accuracy(summaries: list, output_dir: str) -> None:
+    n   = [d["n_docs"]           for d in summaries]
+    acc = [d["rag_accuracy_pct"] for d in summaries]
 
-    fig, (ax_acc, ax_lat) = plt.subplots(
-        2, 1, figsize=(8, 8),
-        sharex=True,
-        gridspec_kw={"hspace": 0.12},
-    )
+    fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    # ── Top panel: Accuracy ──────────────────────────────────────────────────
-    ax_acc.plot(n, acc, marker="o", linewidth=2.2, markersize=8,
-                color=COLORS[0], label="Accuracy")
-    ax_acc.fill_between(n, acc, alpha=0.08, color=COLORS[0])
+    ax.plot(n, acc, marker="o", linewidth=2.2, markersize=8,
+            color=COLORS[0], label="Accuracy")
+    ax.fill_between(n, acc, alpha=0.08, color=COLORS[0])
+    _annotate_fixed(ax, n, acc, "{:.1f}%", color=COLORS[0], direction=+1)
 
-    _annotate(ax_acc, n, acc, "{:.1f}%", color=COLORS[0])
-
-    ax_acc.set_ylabel("Accuracy (%)", fontsize=11)
-    ax_acc.set_ylim(0, 115)
-    ax_acc.set_title("RAG Performance vs Number of Documents in the Database",
-                     fontsize=13, pad=14)
-    ax_acc.legend(fontsize=10, loc="lower left")
-    ax_acc.spines["top"].set_visible(False)
-    ax_acc.spines["right"].set_visible(False)
-
-    # ── Bottom panel: Latencies ──────────────────────────────────────────────
-    ax_lat.plot(n, retrieval, marker="^", linewidth=2,   markersize=7,
-                color=COLORS[1], linestyle="--",  label="Retrieval time")
-    ax_lat.plot(n, inference, marker="s", linewidth=2,   markersize=7,
-                color=COLORS[2], linestyle="-.",  label="Inference time")
-    ax_lat.plot(n, total,     marker="o", linewidth=2.2, markersize=8,
-                color=COLORS[3],                  label="Total avg latency")
-
-    _annotate(ax_lat, n, retrieval, "{:.4f}s", color=COLORS[1], fontsize=8)
-    _annotate(ax_lat, n, inference, "{:.3f}s",  color=COLORS[2], fontsize=8)
-    _annotate(ax_lat, n, total,     "{:.3f}s",  color=COLORS[3], fontsize=8)
-
-    ax_lat.set_xlabel("Number of documents in RAG database", fontsize=11)
-    ax_lat.set_ylabel("Time (s)", fontsize=11)
-    ax_lat.set_xticks(n)
-    ax_lat.legend(fontsize=10, loc="upper left")
-    ax_lat.spines["top"].set_visible(False)
-    ax_lat.spines["right"].set_visible(False)
+    ax.set_xlabel("Number of documents in RAG database", fontsize=11)
+    ax.set_ylabel("Accuracy (%)", fontsize=11)
+    ax.set_ylim(0, 115)
+    ax.set_xticks(n)
+    ax.set_title("RAG Accuracy vs Number of Documents", fontsize=13, pad=12)
+    ax.legend(fontsize=10, loc="lower left")
 
     os.makedirs(output_dir, exist_ok=True)
-    out = Path(output_dir) / "ndocs_accuracy_latency.png"
+    out = Path(output_dir) / "ndocs_accuracy.png"
+    fig.savefig(out, bbox_inches="tight")
+    print(f"Saved → {out}")
+    plt.close(fig)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Figure 2 — Latency breakdown
+# ─────────────────────────────────────────────────────────────────────────────
+
+def plot_latency(summaries: list, output_dir: str) -> None:
+    n         = [d["n_docs"]                 for d in summaries]
+    retrieval = [d["avg_retrieval_time_sec"]  for d in summaries]
+    inference = [d["avg_inference_time_sec"]  for d in summaries]
+    total     = [d["avg_latency_sec"]         for d in summaries]
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+
+    ax.plot(n, retrieval, marker="^", linewidth=2,   markersize=7,
+            color=COLORS[1], linestyle="--",  label="Retrieval time")
+    ax.plot(n, inference, marker="s", linewidth=2,   markersize=7,
+            color=COLORS[2], linestyle="-.",  label="Inference time")
+    ax.plot(n, total,     marker="o", linewidth=2.2, markersize=8,
+            color=COLORS[3],                  label="Total avg latency")
+
+    # retrieval near zero → label below; inference below total; total above
+    _annotate_fixed(ax, n, retrieval, "{:.4f}s", color=COLORS[1],
+                    fontsize=8, offset=10, direction=-1)
+    _annotate_fixed(ax, n, inference, "{:.3f}s",  color=COLORS[2],
+                    fontsize=8, offset=10, direction=-1)
+    _annotate_fixed(ax, n, total,     "{:.3f}s",  color=COLORS[3],
+                    fontsize=8, offset=12, direction=+1)
+
+    ax.set_xlabel("Number of documents in RAG database", fontsize=11)
+    ax.set_ylabel("Time (s)", fontsize=11)
+    ax.set_xticks(n)
+    ax.set_title("Latency vs Number of Documents", fontsize=13, pad=12)
+    ax.legend(fontsize=10, loc="upper left")
+
+    os.makedirs(output_dir, exist_ok=True)
+    out = Path(output_dir) / "ndocs_latency.png"
     fig.savefig(out, bbox_inches="tight")
     print(f"Saved → {out}")
     plt.close(fig)
@@ -157,7 +155,10 @@ def main():
               f"inference={d['avg_inference_time_sec']:.3f}s  "
               f"total={d['avg_latency_sec']:.3f}s")
 
-    plot_ndocs(summaries, args.output_dir)
+    print("\nGenerating figures...")
+    plot_accuracy(summaries, args.output_dir)
+    plot_latency(summaries,  args.output_dir)
+    print("All done!")
 
 
 if __name__ == "__main__":
