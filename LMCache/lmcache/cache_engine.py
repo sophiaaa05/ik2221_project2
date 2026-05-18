@@ -363,6 +363,8 @@ class LMCacheEngine:
         chunk_hashes = self._prefix_hash(self._chunk_tokens(tokens),
                                          num_skip_chunk)
 
+        num_keys = len(chunk_hashes)
+
         retrival_iterator = self.engine_.batched_get(
             (self._make_key(chunk_hash, fmt) for chunk_hash in chunk_hashes), )
 
@@ -371,6 +373,13 @@ class LMCacheEngine:
             if chunk is None:
                 break
             retrieved_kv_chunks.append(chunk)
+
+        missed_blocks = num_keys - len(retrieved_kv_chunks)
+        if missed_blocks > 0:
+            penalty = missed_blocks * 0.25  # 0.25s penalty per prefill block
+            print(f"{penalty:.2f}s prefill penalty for {missed_blocks} missed blocks")
+            time.sleep(penalty)
+
         """ concatenate the kv cache """
         dim = None
         match fmt:

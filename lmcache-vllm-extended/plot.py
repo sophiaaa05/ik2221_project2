@@ -54,13 +54,13 @@ def load_summary_files(results_dir):
         summaries.append({"filename": file.name, "data": data})
     return summaries
 
-def get_cache_size_int(filename):
-    match = re.search(r"cache_(\d+)GB", filename)
-    return int(match.group(1)) if match else -1
+def get_cache_size(filename):
+    match = re.search(r"cache_([\d.]+)GB", filename)
+    return match.group(1) if match else None
 
 def get_cache_label(filename):
-    size = get_cache_size_int(filename)
-    return f"{size}GB Cache" if size != -1 else "0GB Cache"
+    size = get_cache_size(filename)
+    return f"{size}GB Cache" if size else "unknown Cache"
 
 
 # =====================================================
@@ -76,7 +76,7 @@ def plot_throughput(summaries, output_dir):
 
     if not results: return
     
-    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results.keys(), key=lambda c: float(c.split('G')[0]))
     throughputs = [results[c] for c in sorted_caches]
 
     plt.figure(figsize=(9, 6))
@@ -112,7 +112,7 @@ def plot_latency_vs_length(all_data, output_dir):
                 results[cache]["y"].append(row["latency"])
 
     if not results: return
-    sorted_caches = sorted(results.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results.keys(), key=lambda c: float(c.split('G')[0]))
 
     plt.figure(figsize=(10, 6))
     for i, cache in enumerate(sorted_caches):
@@ -151,7 +151,7 @@ def plot_cold_vs_warm(all_data, output_dir):
 
     if not results_latency: return
 
-    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: float(c.split('G')[0]))
     x = np.arange(len(sorted_caches))
     width = 0.35
 
@@ -217,7 +217,7 @@ def plot_diversity_vs_latency(all_data, output_dir):
         if ttfts: results_ttft[cache][n] = np.mean(ttfts)
 
     if not results_latency: return
-    sorted_caches = sorted(results_latency.keys(), key=lambda c: int(c.split('G')[0]))
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: float(c.split('G')[0]))
 
     # --- OPTION A: Total Latency 
     plt.figure(figsize=(10, 6))
@@ -255,6 +255,89 @@ def plot_diversity_vs_latency(all_data, output_dir):
 
 
 # =====================================================
+# Q4: Batch Size vs Latency, TTFT, Cache Matches
+# =====================================================
+def plot_batch(all_data, output_dir):
+    results_latency = {}
+    results_ttft    = {}
+    results_matches = {}
+
+    for item in all_data:
+        if "batch_n" not in item["filename"]: continue
+        cache = get_cache_label(item["filename"])
+
+        m = re.search(r"batch_n(\d+)", item["filename"])
+        if not m: continue
+        n = int(m.group(1))
+
+        lats, ttfts, matches = [], [], []
+        for row in item["data"]:
+            if row.get("latency") is not None:   lats.append(row["latency"])
+            if row.get("ttft") is not None:       ttfts.append(row["ttft"])
+            if row.get("ctx_matches") is not None: matches.append(row["ctx_matches"])
+
+        if cache not in results_latency:
+            results_latency[cache] = {}
+            results_ttft[cache]    = {}
+            results_matches[cache] = {}
+
+        if lats:    results_latency[cache][n] = np.mean(lats)
+        if ttfts:   results_ttft[cache][n]    = np.mean(ttfts)
+        if matches: results_matches[cache][n] = np.mean(matches)
+
+    if not results_latency: return
+    sorted_caches = sorted(results_latency.keys(), key=lambda c: float(c.split('G')[0]))
+
+    # --- Latency vs Batch Size
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        if not results_latency[cache]: continue
+        x = sorted(results_latency[cache].keys())
+        y = [results_latency[cache][n] for n in x]
+        plt.plot(x, y, marker="o", linewidth=2, markersize=8, label=cache, color=COLORS[i%10])
+
+    plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
+    plt.ylabel("Avg Latency per Request (Seconds)", fontsize=11, fontweight='bold')
+    plt.title("Batch Size vs Latency", fontsize=14, pad=15)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "q4_optionA_Latency.png"))
+    plt.close()
+
+    # --- TTFT vs Batch Size
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        if not results_ttft[cache]: continue
+        x = sorted(results_ttft[cache].keys())
+        y = [results_ttft[cache][n] for n in x]
+        plt.plot(x, y, marker="s", linewidth=2, markersize=8, label=cache, linestyle="--", color=COLORS[i%10])
+
+    plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
+    plt.ylabel("Avg TTFT (Seconds)", fontsize=11, fontweight='bold')
+    plt.title("Batch Size vs TTFT", fontsize=14, pad=15)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "q4_optionB_TTFT.png"))
+    plt.close()
+
+    # --- Cache Matches vs Batch Size
+    plt.figure(figsize=(10, 6))
+    for i, cache in enumerate(sorted_caches):
+        if not results_matches[cache]: continue
+        x = sorted(results_matches[cache].keys())
+        y = [results_matches[cache][n] for n in x]
+        plt.plot(x, y, marker="^", linewidth=2, markersize=8, label=cache, color=COLORS[i%10])
+
+    plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
+    plt.ylabel("Avg KV Cache Matches per Batch", fontsize=11, fontweight='bold')
+    plt.title("Batch Size vs Cache Matches", fontsize=14, pad=15)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "q4_optionC_CacheMatches.png"))
+    plt.close()
+
+
+# =====================================================
 # Main
 # =====================================================
 def main():
@@ -285,7 +368,10 @@ def main():
     print("Generating Q3 plots...")
     plot_diversity_vs_latency(all_data, args.output_dir)
 
-    print(f"\n✓ Done. All assignment-aligned graphs saved to '{args.output_dir}/'")
+    print("Generating batch plots...")
+    plot_batch(all_data, args.output_dir)
+
+    print(f"\nDone. All assignment-aligned graphs saved to '{args.output_dir}/'")
 
 if __name__ == "__main__":
     main()
