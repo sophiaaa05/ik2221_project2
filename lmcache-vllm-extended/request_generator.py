@@ -69,7 +69,9 @@ def make_client(ip: str, port: int) -> tuple:
 # ── load contexts ─────────────────────────────────────────────────────────────
 def load_contexts(context_dir: Path) -> dict:
     contexts = {}
-    for fname in sorted(os.listdir(context_dir)):
+    fnames = sorted(os.listdir(context_dir))
+    # for fname in fnames[:8]:  # for testing with reduced subset
+    for fname in fnames:
         if fname.endswith(".txt"):
             fpath = context_dir / fname
             text = fpath.read_text(encoding="utf-8").strip()
@@ -544,6 +546,10 @@ def experiment_diverse(
     results = run_single_pass(
         requests, pass_label="cold", client=client, model_id=model_id
     )
+    t0 = time.perf_counter()
+    results = run_single_pass(
+        requests, pass_label="cold", client=client, model_id=model_id
+    )
     total = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
@@ -634,7 +640,7 @@ def main():
             "repeat         - Q2: cold vs warm (KV cache)\n"
             "diverse_sweep  - Q3: n=1..max-contexts contexts\n"
             "batch          - Q4: batch processing\n"
-            "overlap  - Q4: controlled overlap % within batch\n"
+            "overlap        - Q5: controlled overlap % within batch\n"
             "all            - run all five"
         ),
     )

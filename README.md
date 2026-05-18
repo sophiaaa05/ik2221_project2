@@ -20,3 +20,5 @@ To work with Git, you'll need to set up the VM's SSH key and add to your Github 
 - Run the frontend: `cd lmcache-vllm-extended/frontend && streamlit run frontend.py`
 
 The frontend will be visible on `https://gpu1.eecs.kth.se/user/<kth-username>/vscode/proxy/8501/`.
+
+LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml CUDA_VISIBLE_DEVICES=0 python lmcache-vllm-extended/lmcache_vllm/script.py serve Qwen/Qwen2.5-3B-Instruct  --gpu-memory-utilization 0.8 --dtype half --port 8000 --guided-decoding-backend lm-format-enforcer --max-model-len 8192
