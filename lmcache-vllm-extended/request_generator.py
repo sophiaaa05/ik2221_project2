@@ -17,15 +17,16 @@ import yaml
 from openai import OpenAI
 
 # ── path setup ────────────────────────────────────────────────────────────────
-BASE_DIR     = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 sys.path.insert(0, str(FRONTEND_DIR))
 LLM_BATCH_URL = "http://127.0.0.1:8000/v2/chat/batched-completions"
 
 # ── config ────────────────────────────────────────────────────────────────────
-IP   = "127.0.0.1"
+IP = "127.0.0.1"
 PORT = 8000
 CONFIG_YAML = BASE_DIR / "configuration.yaml"
+
 
 def read_cache_label() -> str:
     try:
@@ -37,6 +38,7 @@ def read_cache_label() -> str:
     except Exception:
         pass
     return "cache_default"
+
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. I will now give you a document and "
@@ -53,6 +55,7 @@ QUESTIONS = [
     "What methods or techniques are proposed in this document?",
 ]
 
+
 def make_client(ip: str, port: int) -> tuple:
     client = OpenAI(
         api_key="EMPTY",
@@ -62,11 +65,13 @@ def make_client(ip: str, port: int) -> tuple:
     print(f"  Connected to model: {model_id}")
     return client, model_id
 
+
 # ── load contexts ─────────────────────────────────────────────────────────────
 def load_contexts(context_dir: Path) -> dict:
     contexts = {}
     fnames = sorted(os.listdir(context_dir))
-    for fname in fnames[:8]:
+    # for fname in fnames[:8]:  # for testing with reduced subset
+    for fname in fnames:
         if fname.endswith(".txt"):
             fpath = context_dir / fname
             text = fpath.read_text(encoding="utf-8").strip()
@@ -75,6 +80,7 @@ def load_contexts(context_dir: Path) -> dict:
             print(f"  Loaded: {ctx_id} ({len(text)} chars)")
     return contexts
 
+
 # ── request list builders ─────────────────────────────────────────────────────
 def build_request_list(contexts: dict, questions: list, seed: int) -> list:
     """One entry per (context, question) pair, shuffled."""
@@ -82,13 +88,15 @@ def build_request_list(contexts: dict, questions: list, seed: int) -> list:
     request_id = 0
     for ctx_id, ctx_text in contexts.items():
         for q in questions:
-            pairs.append({
-                "request_id":   request_id,
-                "context_id":   ctx_id,
-                "context_text": ctx_text,
-                "question":     q,
-                "prompt_len":   len(ctx_text) + len(q),
-            })
+            pairs.append(
+                {
+                    "request_id": request_id,
+                    "context_id": ctx_id,
+                    "context_text": ctx_text,
+                    "question": q,
+                    "prompt_len": len(ctx_text) + len(q),
+                }
+            )
             request_id += 1
 
     random.seed(seed)
@@ -96,30 +104,34 @@ def build_request_list(contexts: dict, questions: list, seed: int) -> list:
     return pairs
 
 
-def build_diverse_request_list(contexts: dict, questions: list, seed: int,
-                                n_contexts: int) -> list:
+def build_diverse_request_list(
+    contexts: dict, questions: list, seed: int, n_contexts: int
+) -> list:
     ctx_items = list(contexts.items())
     if len(ctx_items) < n_contexts:
         return []
 
     random.seed(seed)
     pairs = []
-    
-    num_iterations = len(ctx_items) 
+
+    num_iterations = len(ctx_items)
     for _ in range(num_iterations):
         for q in questions:
-            chosen   = random.sample(ctx_items, n_contexts)
-            ctx_id   = "+".join(c[0] for c in chosen)
+            chosen = random.sample(ctx_items, n_contexts)
+            ctx_id = "+".join(c[0] for c in chosen)
             ctx_text = ("\n\n" + CONTEXT_SEPARATOR + "\n\n").join(c[1] for c in chosen)
-            pairs.append({
-                "context_id":   ctx_id,
-                "context_text": ctx_text,
-                "question":     q,
-                "prompt_len":   len(ctx_text) + len(q),
-            })
-            
+            pairs.append(
+                {
+                    "context_id": ctx_id,
+                    "context_text": ctx_text,
+                    "question": q,
+                    "prompt_len": len(ctx_text) + len(q),
+                }
+            )
+
     random.shuffle(pairs)
     return pairs
+
 
 # ── send requests ──────────────────────────────────────────────────────────
 def send_request(req: dict, client: OpenAI, model_id: str) -> tuple:
@@ -131,13 +143,13 @@ def send_request(req: dict, client: OpenAI, model_id: str) -> tuple:
     """
     context_prime = CONTEXT_SEPARATOR.join([SYSTEM_PROMPT, req["context_text"]])
     messages = [
-        {"role": "user",      "content": context_prime},
+        {"role": "user", "content": context_prime},
         {"role": "assistant", "content": "Got it!"},
-        {"role": "user",      "content": req["question"]},
+        {"role": "user", "content": req["question"]},
     ]
 
     start = time.perf_counter()
-    ttft  = None  # time to first token
+    ttft = None  # time to first token
 
     stream = client.chat.completions.create(
         model=model_id,
@@ -153,34 +165,38 @@ def send_request(req: dict, client: OpenAI, model_id: str) -> tuple:
             if ttft is None:
                 ttft = time.perf_counter() - start
 
-    latency  = time.perf_counter() - start
+    latency = time.perf_counter() - start
     if ttft is None:
         raise RuntimeError("No generation tokens received")
     return latency, ttft
 
 
-def send_batch_request(batch: list, model_id: str, batch_url: str, timeout: int = 200) -> tuple:
+def send_batch_request(
+    batch: list, model_id: str, batch_url: str, timeout: int = 200
+) -> tuple:
     """
-    Send a batch of requests in a single POST and return the response 
+    Send a batch of requests in a single POST and return the response
     """
     payloads = []
     for req in batch:
         context_prime = CONTEXT_SEPARATOR.join([SYSTEM_PROMPT, req["context_text"]])
-        payloads.append({
-            "model": model_id,
-            "request_id": req["request_id"],
-            "context_id": req["context_id"],
-            "messages": [
-                {"role": "user",      "content": context_prime},
-                {"role": "assistant", "content": "Got it!"},
-                {"role": "user",      "content": req["question"]},
-            ],
-            "temperature": 0.5,
-            "stream": True
-        })
+        payloads.append(
+            {
+                "model": model_id,
+                "request_id": req["request_id"],
+                "context_id": req["context_id"],
+                "messages": [
+                    {"role": "user", "content": context_prime},
+                    {"role": "assistant", "content": "Got it!"},
+                    {"role": "user", "content": req["question"]},
+                ],
+                "temperature": 0.5,
+                "stream": True,
+            }
+        )
 
     start = time.perf_counter()
-    resp  = requests.post(batch_url, json=payloads, timeout=timeout)
+    resp = requests.post(batch_url, json=payloads, timeout=timeout)
     total_latency = time.perf_counter() - start
 
     if not resp.ok:
@@ -195,80 +211,103 @@ def send_batch_request(batch: list, model_id: str, batch_url: str, timeout: int 
         }
     return responses, total_latency
 
+
 def format_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"
 
+
 # ── single pass ───────────────────────────────────────────────────────────────
-def run_single_pass(requests: list, pass_label: str, client: OpenAI, model_id: str) -> list:
+def run_single_pass(
+    requests: list, pass_label: str, client: OpenAI, model_id: str
+) -> list:
     """Send every request once, in order."""
     print(f"\n  --- {pass_label} ({len(requests)} requests) ---")
     results = []
     for i, req in enumerate(requests):
-        print(f"    [{i+1:>3}/{len(requests)}] "
-              f"ctx={req['context_id'][:20]:20s} "
-              f"len={req['prompt_len']:>6} chars ... ",
-              end="", flush=True)
+        print(
+            f"    [{i+1:>3}/{len(requests)}] "
+            f"ctx={req['context_id'][:20]:20s} "
+            f"len={req['prompt_len']:>6} chars ... ",
+            end="",
+            flush=True,
+        )
         try:
             latency, ttft = send_request(req, client, model_id)
             print(f"{latency:.3f}s  (ttft={ttft:.3f}s)")
-            results.append({
-                "pass":       pass_label,
-                "prompt_len": req["prompt_len"],
-                "latency":    latency,
-                "ttft":       ttft,
-                "error":      None,
-            })
-        except Exception as e:
-            error_text = format_error(e)
-            print(f"ERROR: {error_text}")
-            results.append({
-                "pass": pass_label,
-                "prompt_len": req["prompt_len"],
-                "latency": None,
-                "ttft": None,
-                "error": error_text,
-            })
-    return results
-
-# ── batch pass ───────────────────────────────────────────────────────────────
-def run_batch_pass(requests: list, pass_label: str, model_id: str, batch_size: int = 5) -> list:
-    """Send requests in batches."""
-    print(f"\n  --- {pass_label} ({len(requests)} requests) ---")
-    results = []
-    
-    for i in range(0, len(requests), batch_size):
-        batch = requests[i:i+batch_size]
-        ctx_ids = [req["context_id"] for req in batch]
-        print(ctx_ids)
-        matches = len(batch) - len(set(ctx_ids)) # Calculating how many matches
-        print(f"Processing batch {i//batch_size + 1} "
-              f"({len(batch)} requests) matches={matches} ... ",
-              end="", flush=True)
-        try:
-            responses, total_latency = send_batch_request(batch, model_id, LLM_BATCH_URL)
-            print(f"Total latency: {total_latency:.3f}s")
-            for req in batch:
-                results.append({
+            results.append(
+                {
                     "pass": pass_label,
                     "prompt_len": req["prompt_len"],
-                    "latency": responses[req["request_id"]]["server_latency"],  
-                    "ttft": responses[req["request_id"]]["server_ttft"],  
-                    "ctx_matches": matches,
+                    "latency": latency,
+                    "ttft": ttft,
                     "error": None,
-                })
+                }
+            )
         except Exception as e:
             error_text = format_error(e)
             print(f"ERROR: {error_text}")
-            for req in batch:
-                results.append({
+            results.append(
+                {
                     "pass": pass_label,
                     "prompt_len": req["prompt_len"],
                     "latency": None,
                     "ttft": None,
-                    "ctx_matches": matches,
                     "error": error_text,
-                })
+                }
+            )
     return results
+
+
+# ── batch pass ───────────────────────────────────────────────────────────────
+def run_batch_pass(
+    requests: list, pass_label: str, model_id: str, batch_size: int = 5
+) -> list:
+    """Send requests in batches."""
+    print(f"\n  --- {pass_label} ({len(requests)} requests) ---")
+    results = []
+
+    for i in range(0, len(requests), batch_size):
+        batch = requests[i : i + batch_size]
+        ctx_ids = [req["context_id"] for req in batch]
+        matches = len(batch) - len(set(ctx_ids))  # Calculating how many matches
+        print(
+            f"Processing batch {i//batch_size + 1} "
+            f"({len(batch)} requests) matches={matches} ... ",
+            end="",
+            flush=True,
+        )
+        try:
+            responses, total_latency = send_batch_request(
+                batch, model_id, LLM_BATCH_URL
+            )
+            print(f"Total latency: {total_latency:.3f}s")
+            for req in batch:
+                results.append(
+                    {
+                        "pass": pass_label,
+                        "prompt_len": req["prompt_len"],
+                        "latency": responses[req["request_id"]]["server_latency"],
+                        "ttft": responses[req["request_id"]]["server_ttft"],
+                        "ctx_matches": matches,
+                        "error": None,
+                    }
+                )
+        except Exception as e:
+            error_text = format_error(e)
+            print(f"ERROR: {error_text}")
+            for req in batch:
+                results.append(
+                    {
+                        "pass": pass_label,
+                        "prompt_len": req["prompt_len"],
+                        "latency": None,
+                        "ttft": None,
+                        "ctx_matches": matches,
+                        "error": error_text,
+                    }
+                )
+    return results
+
 
 # ── repeat pass (cold → warm per request) ────────────────────────────────────
 def run_repeat_pass(requests: list, client: OpenAI, model_id: str) -> list:
@@ -281,38 +320,46 @@ def run_repeat_pass(requests: list, client: OpenAI, model_id: str) -> list:
     print(f"\n  --- repeat cold->warm ({len(requests)} requests) ---")
     results = []
     for i, req in enumerate(requests):
-        print(f"    [{i+1:>3}/{len(requests)}] "
-              f"ctx={req['context_id'][:20]:20s} "
-              f"len={req['prompt_len']:>6} chars",
-              end="", flush=True)
+        print(
+            f"    [{i+1:>3}/{len(requests)}] "
+            f"ctx={req['context_id'][:20]:20s} "
+            f"len={req['prompt_len']:>6} chars",
+            end="",
+            flush=True,
+        )
 
         for pass_label in ("cold", "warm"):
             try:
                 latency, ttft = send_request(req, client, model_id)
                 print(f"  {pass_label}={latency:.3f}s", end="", flush=True)
-                results.append({
-                    "pass":       pass_label,
-                    "prompt_len": req["prompt_len"],
-                    "latency":    latency,
-                    "ttft":       ttft,
-                    "error":      None,
-                })
+                results.append(
+                    {
+                        "pass": pass_label,
+                        "prompt_len": req["prompt_len"],
+                        "latency": latency,
+                        "ttft": ttft,
+                        "error": None,
+                    }
+                )
             except Exception as e:
                 error_text = format_error(e)
                 print(f"  {pass_label}=ERROR({error_text})", end="", flush=True)
-                results.append({
-                    "pass":       pass_label,
-                    "prompt_len": req["prompt_len"],
-                    "latency":    None,
-                    "ttft":       None,
-                    "error":      error_text,
-                })
+                results.append(
+                    {
+                        "pass": pass_label,
+                        "prompt_len": req["prompt_len"],
+                        "latency": None,
+                        "ttft": None,
+                        "error": error_text,
+                    }
+                )
         print()
     return results
 
+
 # ── summarise ─────────────────────────────────────────────────────────────────
 def summarise(results: list, label: str, total_time: float) -> dict:
-    ok  = [r for r in results if r["latency"] is not None and r["ttft"] is not None]
+    ok = [r for r in results if r["latency"] is not None and r["ttft"] is not None]
     avg_lat = sum(r["latency"] for r in ok) / len(ok) if ok else 0.0
     avg_ttft = sum(r["ttft"] for r in ok) / len(ok) if ok else 0.0
     thr = len(ok) / total_time if total_time > 0 else 0.0
@@ -330,7 +377,9 @@ def summarise(results: list, label: str, total_time: float) -> dict:
     print(f"     Avg Latency: {avg_lat:.4f}s")
     print(f"     Avg TTFT   : {avg_ttft:.4f}s")
     if matches_ok:
-        print(f"     Avg ctx matches/batch: {avg_matches:.2f}  (total: {total_matches})")
+        print(
+            f"     Avg ctx matches/batch: {avg_matches:.2f}  (total: {total_matches})"
+        )
 
     summary = {
         "label": label,
@@ -348,13 +397,21 @@ def summarise(results: list, label: str, total_time: float) -> dict:
     cold = [r for r in ok if r["pass"] == "cold"]
     warm = [r for r in ok if r["pass"] == "warm"]
     if cold and warm:
-        avg_lat_cold   = sum(r["latency"] for r in cold) / len(cold)
-        avg_lat_warm   = sum(r["latency"] for r in warm) / len(warm)
-        lat_improvement = (avg_lat_cold - avg_lat_warm) / avg_lat_cold * 100 if avg_lat_cold > 0 else 0.0
+        avg_lat_cold = sum(r["latency"] for r in cold) / len(cold)
+        avg_lat_warm = sum(r["latency"] for r in warm) / len(warm)
+        lat_improvement = (
+            (avg_lat_cold - avg_lat_warm) / avg_lat_cold * 100
+            if avg_lat_cold > 0
+            else 0.0
+        )
 
-        avg_ttft_cold  = sum(r["ttft"] for r in cold) / len(cold)
-        avg_ttft_warm  = sum(r["ttft"] for r in warm) / len(warm)
-        ttft_improvement = (avg_ttft_cold - avg_ttft_warm) / avg_ttft_cold * 100 if avg_ttft_cold > 0 else 0.0
+        avg_ttft_cold = sum(r["ttft"] for r in cold) / len(cold)
+        avg_ttft_warm = sum(r["ttft"] for r in warm) / len(warm)
+        ttft_improvement = (
+            (avg_ttft_cold - avg_ttft_warm) / avg_ttft_cold * 100
+            if avg_ttft_cold > 0
+            else 0.0
+        )
 
         print(f"     ---")
         print(f"     Avg Latency (cold): {avg_lat_cold:.4f}s")
@@ -364,16 +421,19 @@ def summarise(results: list, label: str, total_time: float) -> dict:
         print(f"     Avg TTFT (warm)   : {avg_ttft_warm:.4f}s")
         print(f"     TTFT Improv.      : {ttft_improvement:.1f}%")
 
-        summary.update({
-            "avg_latency_cold_sec": avg_lat_cold,
-            "avg_latency_warm_sec": avg_lat_warm,
-            "latency_improvement_pct": lat_improvement,
-            "avg_ttft_cold_sec": avg_ttft_cold,
-            "avg_ttft_warm_sec": avg_ttft_warm,
-            "ttft_improvement_pct": ttft_improvement,
-        })
+        summary.update(
+            {
+                "avg_latency_cold_sec": avg_lat_cold,
+                "avg_latency_warm_sec": avg_lat_warm,
+                "latency_improvement_pct": lat_improvement,
+                "avg_ttft_cold_sec": avg_ttft_cold,
+                "avg_ttft_warm_sec": avg_ttft_warm,
+                "ttft_improvement_pct": ttft_improvement,
+            }
+        )
 
     return summary
+
 
 # ── experiments ───────────────────────────────────────────────────────────────
 def experiment_single(contexts, questions, cache_label, output_dir, client, model_id):
@@ -382,11 +442,15 @@ def experiment_single(contexts, questions, cache_label, output_dir, client, mode
 
     print(f"\n{'='*65}")
     print(f"RUN A - Single Pass | cache={cache_label}")
-    print(f"  {len(requests)} requests  ({len(contexts)} contexts * {len(questions)} questions)")
+    print(
+        f"  {len(requests)} requests  ({len(contexts)} contexts * {len(questions)} questions)"
+    )
     print(f"{'='*65}")
 
     t0 = time.perf_counter()
-    results = run_single_pass(requests, pass_label="cold", client=client, model_id=model_id)
+    results = run_single_pass(
+        requests, pass_label="cold", client=client, model_id=model_id
+    )
     total = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
@@ -412,10 +476,13 @@ def experiment_repeat(contexts, questions, cache_label, output_dir, client, mode
     return results, summary
 
 
-def experiment_diverse(contexts, questions, cache_label, output_dir, client, model_id, n_contexts: int):
+def experiment_diverse(
+    contexts, questions, cache_label, output_dir, client, model_id, n_contexts: int
+):
     label = f"{cache_label}_diverse_n{n_contexts}"
-    requests = build_diverse_request_list(contexts, questions, seed=42,
-                                          n_contexts=n_contexts)
+    requests = build_diverse_request_list(
+        contexts, questions, seed=42, n_contexts=n_contexts
+    )
     if not requests:
         return [], {}
 
@@ -424,26 +491,34 @@ def experiment_diverse(contexts, questions, cache_label, output_dir, client, mod
     print(f"  {len(requests)} requests")
     print(f"{'='*65}")
 
-    t0      = time.perf_counter()
-    results = run_single_pass(requests, pass_label="cold", client=client, model_id=model_id)
-    total   = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    results = run_single_pass(
+        requests, pass_label="cold", client=client, model_id=model_id
+    )
+    total = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
     save(results, summary, label, output_dir)
     return results, summary
 
 
-def experiment_batch(contexts, questions, cache_label, output_dir, model_id, batch_size):
+def experiment_batch(
+    contexts, questions, cache_label, output_dir, model_id, batch_size
+):
     label = f"{cache_label}_batch_n{batch_size}"
     requests = build_request_list(contexts, questions, seed=42)
 
     print(f"\n{'='*65}")
     print(f"RUN D - Batch Pass (n={batch_size}) | cache={cache_label}")
-    print(f"  {len(requests)} requests  ({len(contexts)} contexts * {len(questions)} questions)")
+    print(
+        f"  {len(requests)} requests  ({len(contexts)} contexts * {len(questions)} questions)"
+    )
     print(f"{'='*65}")
 
     t0 = time.perf_counter()
-    results = run_batch_pass(requests, pass_label="batch", model_id=model_id, batch_size=batch_size)
+    results = run_batch_pass(
+        requests, pass_label="batch", model_id=model_id, batch_size=batch_size
+    )
     total = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
@@ -454,7 +529,7 @@ def experiment_batch(contexts, questions, cache_label, output_dir, model_id, bat
 # ── save ──────────────────────────────────────────────────────────────────────
 def save(results: list, summary: dict, label: str, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
-    ts         = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_label = label.replace(" ", "_")
 
     rpath = os.path.join(output_dir, f"{safe_label}_{ts}_results.json")
@@ -468,32 +543,45 @@ def save(results: list, summary: dict, label: str, output_dir: str):
     print(f"  Saved results -> {rpath}")
     print(f"  Saved summary -> {spath}")
 
+
 # ── main ──────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="IK2221 Request Generator")
-    parser.add_argument("--context-dir", type=Path,
-                        default=BASE_DIR / "frontend" / "data",
-                        help="Folder of .txt context files")
-    parser.add_argument("--mode",
-                        choices=["single", "repeat", "diverse_sweep", "batch", "all"],
-                        default="all",
-                        help=(
-                            "single         - Q1: latency vs length\n"
-                            "repeat         - Q2: cold vs warm (KV cache)\n"
-                            "diverse_sweep  - Q3: n=1..max-contexts contexts\n"
-                            "batch          - Q4: batch processing\n"
-                            "all            - run all four"
-                        ))
-    parser.add_argument("--max-contexts", type=int, default=3,
-                        help="Max number of contexts per request in diverse_sweep "
-                             "(sweeps from n=1 up to this value, default: 3)")
-    parser.add_argument("--output-dir", default="results",
-                        help="Folder to write result JSON files (default: results/)")
-    parser.add_argument("--label", default="experiment",
-                        help="Label for this run")
-    parser.add_argument("--batch-size", type=int, default=1,
-                        help="Batch size for request processing")
-    parser.add_argument("--ip",   default=IP)
+    parser.add_argument(
+        "--context-dir",
+        type=Path,
+        default=BASE_DIR / "frontend" / "data",
+        help="Folder of .txt context files",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["single", "repeat", "diverse_sweep", "batch", "all"],
+        default="all",
+        help=(
+            "single         - Q1: latency vs length\n"
+            "repeat         - Q2: cold vs warm (KV cache)\n"
+            "diverse_sweep  - Q3: n=1..max-contexts contexts\n"
+            "batch          - Q4: batch processing\n"
+            "all            - run all four"
+        ),
+    )
+    parser.add_argument(
+        "--max-contexts",
+        type=int,
+        default=3,
+        help="Max number of contexts per request in diverse_sweep "
+        "(sweeps from n=1 up to this value, default: 3)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="results",
+        help="Folder to write result JSON files (default: results/)",
+    )
+    parser.add_argument("--label", default="experiment", help="Label for this run")
+    parser.add_argument(
+        "--batch-size", type=int, default=1, help="Batch size for request processing"
+    )
+    parser.add_argument("--ip", default=IP)
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
     cache_label = read_cache_label()
@@ -513,7 +601,11 @@ def main():
     client, model_id = make_client(args.ip, args.port)
 
     print("\nSending warmup request ...")
-    send_request({"context_text": "warm up", "question": "this is just a warmup, ignore"}, client, model_id)
+    send_request(
+        {"context_text": "warm up", "question": "this is just a warmup, ignore"},
+        client,
+        model_id,
+    )
     print("  Warmup done.")
 
     print(f"\nLoading contexts from '{args.context_dir}' ...")
@@ -521,22 +613,32 @@ def main():
     print(f"Loaded {len(contexts)} context file(s).")
 
     if args.mode in ("single", "all"):
-        experiment_single(contexts, QUESTIONS, cache_label, args.output_dir,
-                          client, model_id)
+        experiment_single(
+            contexts, QUESTIONS, cache_label, args.output_dir, client, model_id
+        )
 
     if args.mode in ("repeat", "all"):
-        experiment_repeat(contexts, QUESTIONS, cache_label, args.output_dir,
-                          client, model_id)
+        experiment_repeat(
+            contexts, QUESTIONS, cache_label, args.output_dir, client, model_id
+        )
 
     if args.mode in ("diverse_sweep", "all"):
         max_n = min(args.max_contexts, len(contexts))
         for n in range(1, max_n + 1):
-            experiment_diverse(contexts, QUESTIONS, cache_label, args.output_dir,
-                               client, model_id, n_contexts=n)
+            experiment_diverse(
+                contexts,
+                QUESTIONS,
+                cache_label,
+                args.output_dir,
+                client,
+                model_id,
+                n_contexts=n,
+            )
 
     if args.mode in ("batch", "all"):
-        experiment_batch(contexts, QUESTIONS, cache_label, args.output_dir,
-                         model_id, args.batch_size)
+        experiment_batch(
+            contexts, QUESTIONS, cache_label, args.output_dir, model_id, args.batch_size
+        )
 
     print(f"\n Done. Results saved in '{args.output_dir}/'")
 

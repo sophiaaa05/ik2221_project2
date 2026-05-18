@@ -110,14 +110,10 @@ class LMCHybridBackend(LMCBackendInterface):
                 remote_queries.append(key)
                 remote_query_idxs.append(idx)
 
-        # only simulate fetch penalty when ALL blocks miss local cache (since even if full context was in
-        # cache for a request, there would be 1-2 blocks not due to unique context-question pair)
-        if len(remote_queries) == len(list(ret)):
-            time.sleep(1) # simulate the network latency when using LMCache server
-            print("1 second for remote fetch")   
-        else:
-            print("no penalty- some/most blocks gotten locally")
-
+        if remote_queries:
+            penalty = len(remote_queries) * 0.25  # 0.25s penalty per remote fetched block
+            print(f"{penalty:.2f}s remote fetch penalty for {len(remote_queries)} missed blocks")
+            time.sleep(penalty)
 
         remote_query_results = self.remote_store.batched_get(remote_queries)
         for idx, key, result in zip(remote_query_idxs, remote_queries,

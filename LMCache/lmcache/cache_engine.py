@@ -373,6 +373,13 @@ class LMCacheEngine:
             if chunk is None:
                 break
             retrieved_kv_chunks.append(chunk)
+
+        missed_blocks = num_keys - len(retrieved_kv_chunks)
+        if missed_blocks > 0:
+            penalty = missed_blocks * 0.25  # 0.25s penalty per prefill block
+            print(f"{penalty:.2f}s prefill penalty for {missed_blocks} missed blocks")
+            time.sleep(penalty)
+
         """ concatenate the kv cache """
         dim = None
         match fmt:
@@ -385,11 +392,6 @@ class LMCacheEngine:
 
         if len(retrieved_kv_chunks) == 0:
             logging.info("Retrieved 0 chunks")
-            # if the only block to be fetched was an overlap of context + question, don't charge penalty
-            print(f"other len {num_keys}")
-            if num_keys != 1:
-                time.sleep(1) # simulate the extra cost of the prefill when we have substantial cache misses
-                print("1 more second for prefills")
             self.miss_tokens_count += tokens.shape[0]
             ret_mask[:] = False
             return (), ret_mask
