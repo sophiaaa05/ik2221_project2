@@ -70,7 +70,6 @@ def make_client(ip: str, port: int) -> tuple:
 def load_contexts(context_dir: Path) -> dict:
     contexts = {}
     fnames = sorted(os.listdir(context_dir))
-    # for fname in fnames[:8]:  # for testing with reduced subset
     for fname in fnames:
         if fname.endswith(".txt"):
             fpath = context_dir / fname
