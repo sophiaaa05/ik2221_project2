@@ -65,7 +65,8 @@ def make_client(ip: str, port: int) -> tuple:
 # ── load contexts ─────────────────────────────────────────────────────────────
 def load_contexts(context_dir: Path) -> dict:
     contexts = {}
-    for fname in sorted(os.listdir(context_dir)):
+    fnames = sorted(os.listdir(context_dir))
+    for fname in fnames[:8]:
         if fname.endswith(".txt"):
             fpath = context_dir / fname
             text = fpath.read_text(encoding="utf-8").strip()
@@ -238,6 +239,7 @@ def run_batch_pass(requests: list, pass_label: str, model_id: str, batch_size: i
     for i in range(0, len(requests), batch_size):
         batch = requests[i:i+batch_size]
         ctx_ids = [req["context_id"] for req in batch]
+        print(ctx_ids)
         matches = len(batch) - len(set(ctx_ids)) # Calculating how many matches
         print(f"Processing batch {i//batch_size + 1} "
               f"({len(batch)} requests) matches={matches} ... ",

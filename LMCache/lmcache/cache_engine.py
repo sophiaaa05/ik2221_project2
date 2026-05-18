@@ -363,6 +363,8 @@ class LMCacheEngine:
         chunk_hashes = self._prefix_hash(self._chunk_tokens(tokens),
                                          num_skip_chunk)
 
+        num_keys = len(chunk_hashes)
+
         retrival_iterator = self.engine_.batched_get(
             (self._make_key(chunk_hash, fmt) for chunk_hash in chunk_hashes), )
 
@@ -383,7 +385,11 @@ class LMCacheEngine:
 
         if len(retrieved_kv_chunks) == 0:
             logging.info("Retrieved 0 chunks")
-            time.sleep(1) # simulate the extra cost of the prefill when we have cache misses
+            # if the only block to be fetched was an overlap of context + question, don't charge penalty
+            print(f"other len {num_keys}")
+            if num_keys != 1:
+                time.sleep(1) # simulate the extra cost of the prefill when we have substantial cache misses
+                print("1 more second for prefills")
             self.miss_tokens_count += tokens.shape[0]
             ret_mask[:] = False
             return (), ret_mask
