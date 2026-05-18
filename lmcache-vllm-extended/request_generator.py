@@ -546,10 +546,6 @@ def experiment_diverse(
     results = run_single_pass(
         requests, pass_label="cold", client=client, model_id=model_id
     )
-    t0 = time.perf_counter()
-    results = run_single_pass(
-        requests, pass_label="cold", client=client, model_id=model_id
-    )
     total = time.perf_counter() - t0
 
     summary = summarise(results, label, total)
@@ -666,6 +662,12 @@ def main():
         default=None,
         help="Overlap percentage for overlap mode (0-100)",
     )
+    parser.add_argument(
+        "--num-contexts",
+        type=int,
+        default=None,
+        help="Limit how many context files to use (default: all)",
+    )
     parser.add_argument("--ip", default=IP)
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
@@ -696,7 +698,11 @@ def main():
 
     print(f"\nLoading contexts from '{args.context_dir}' ...")
     contexts = load_contexts(args.context_dir)
-    print(f"Loaded {len(contexts)} context file(s).")
+    if args.num_contexts is not None:
+        contexts = dict(list(contexts.items())[: args.num_contexts])
+        print(f"Using {len(contexts)} of available context files")
+    else:
+        print(f"Loaded {len(contexts)} context files")
 
     if args.mode in ("single", "all"):
         experiment_single(
@@ -731,19 +737,23 @@ def main():
             args.batch_size or 1,
         )
 
-    if args.mode in ("overlap", "all"):
+    if args.mode in ("overlap"):
+        # Both batch size and overlap percentage must be provided
         if args.batch_size is None or args.overlap_pct is None:
-            print("\nError: --batch-size and --overlap-pct are required")
+            print(
+                "\nError: --batch-size and --overlap-pct are required for overlap mode"
+            )
             return
-        experiment_overlap_batch(
-            contexts,
-            QUESTIONS,
-            cache_label,
-            args.output_dir,
-            model_id,
-            args.batch_size,
-            args.overlap_pct / 100,
-        )
+        else:
+            experiment_overlap_batch(
+                contexts,
+                QUESTIONS,
+                cache_label,
+                args.output_dir,
+                model_id,
+                args.batch_size,
+                args.overlap_pct / 100,
+            )
 
     print(f"\n Done. Results saved in '{args.output_dir}/'")
 
