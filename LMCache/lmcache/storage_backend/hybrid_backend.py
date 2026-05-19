@@ -110,6 +110,11 @@ class LMCHybridBackend(LMCBackendInterface):
                 remote_queries.append(key)
                 remote_query_idxs.append(idx)
 
+        if remote_queries:
+            penalty = len(remote_queries) * 0.25  # 0.25s penalty per remote fetched block
+            print(f"{penalty:.2f}s remote fetch penalty for {len(remote_queries)} missed blocks")
+            time.sleep(penalty)
+
         remote_query_results = self.remote_store.batched_get(remote_queries)
         for idx, key, result in zip(remote_query_idxs, remote_queries,
                                     remote_query_results):

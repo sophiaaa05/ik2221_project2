@@ -7,3 +7,4 @@ typing_extensions~=4.12.2
 fastapi~=0.115.8
 openai~=1.60.2
 streamlit~=1.42.1
+sentence-transformers==2.7.0
