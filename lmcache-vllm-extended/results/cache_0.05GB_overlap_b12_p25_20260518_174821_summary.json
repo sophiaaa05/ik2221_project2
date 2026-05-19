@@ -1,0 +1,11 @@
+{
+  "label": "cache_0.05GB_overlap_b12_p25",
+  "total_time_sec": 31.722701399587095,
+  "num_requests": 12,
+  "num_successful": 12,
+  "throughput_req_per_sec": 0.37827799873803286,
+  "avg_latency_sec": 2.642946556365738,
+  "avg_ttft_sec": 1.6871788232432057,
+  "avg_ctx_matches_per_batch": 2.0,
+  "total_ctx_matches": 2
+}

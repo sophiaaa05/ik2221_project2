@@ -1,0 +1,110 @@
+[
+  {
+    "pass": "batch",
+    "prompt_len": 3549,
+    "latency": 2.9118554620072246,
+    "ttft": 2.1182630034163594,
+    "ctx_matches": 2,
+    "is_batch_leader": true,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3549,
+    "latency": 0.9593131113797426,
+    "ttft": 0.03180373925715685,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3549,
+    "latency": 1.0854863692075014,
+    "ttft": 0.10173242911696434,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3601,
+    "latency": 2.8260552659630775,
+    "ttft": 2.1030288599431515,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3707,
+    "latency": 3.282339049503207,
+    "ttft": 2.113823081366718,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3109,
+    "latency": 2.483840205706656,
+    "ttft": 1.5821773055940866,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3844,
+    "latency": 3.1793144596740603,
+    "ttft": 2.121132781729102,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3392,
+    "latency": 2.9682389944791794,
+    "ttft": 2.1217129565775394,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3034,
+    "latency": 2.442112721502781,
+    "ttft": 1.5914775915443897,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3473,
+    "latency": 3.111664379015565,
+    "ttft": 2.1090901205316186,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3377,
+    "latency": 3.616293185390532,
+    "ttft": 2.122083192691207,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3718,
+    "latency": 2.848845472559333,
+    "ttft": 2.1298208171501756,
+    "ctx_matches": 2,
+    "is_batch_leader": false,
+    "error": null
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "label": "cache_0.05GB_batch_n8",
+  "total_time_sec": 155.2669962812215,
+  "num_requests": 40,
+  "num_successful": 40,
+  "throughput_req_per_sec": 0.2576207497925155,
+  "avg_latency_sec": 3.8810494023375215,
+  "avg_ttft_sec": 1.1490812433650717,
+  "avg_ctx_matches_per_batch": 2.6,
+  "total_ctx_matches": 13
+}

@@ -1,0 +1,362 @@
+[
+  {
+    "pass": "batch",
+    "prompt_len": 3564,
+    "latency": 19.017546801827848,
+    "ttft": 2.440906052477658,
+    "ctx_matches": 8,
+    "is_batch_leader": true,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3136,
+    "latency": 7.686571795493364,
+    "ttft": 1.8682250957936049,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3473,
+    "latency": 4.783831421285868,
+    "ttft": 2.418517659418285,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3706,
+    "latency": 19.448513086885214,
+    "ttft": 2.4039146080613136,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3034,
+    "latency": 4.398180683143437,
+    "ttft": 1.8666491946205497,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3177,
+    "latency": 19.08160327654332,
+    "ttft": 1.8460472468286753,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3109,
+    "latency": 4.531975917518139,
+    "ttft": 1.8526537008583546,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3472,
+    "latency": 10.462336968630552,
+    "ttft": 1.8429129868745804,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3153,
+    "latency": 16.128732450306416,
+    "ttft": 1.310017954558134,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3125,
+    "latency": 7.288979385048151,
+    "ttft": 1.2879318734630942,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3159,
+    "latency": 12.738301048986614,
+    "ttft": 1.303370232693851,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3034,
+    "latency": 6.399132080376148,
+    "ttft": 1.2980773085728288,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3160,
+    "latency": 5.805168540216982,
+    "ttft": 1.2836672877892852,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3718,
+    "latency": 12.046711627393961,
+    "ttft": 2.4314817134290934,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3489,
+    "latency": 14.185858032666147,
+    "ttft": 1.8185356045141816,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3126,
+    "latency": 19.045645617879927,
+    "ttft": 1.3070478662848473,
+    "ctx_matches": 8,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3707,
+    "latency": 2.6517353421077132,
+    "ttft": 1.3528937585651875,
+    "ctx_matches": 9,
+    "is_batch_leader": true,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3033,
+    "latency": 7.671569401398301,
+    "ttft": 1.1036001527681947,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3473,
+    "latency": 8.415427247062325,
+    "ttft": 1.8063293397426605,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3176,
+    "latency": 5.9066468589007854,
+    "ttft": 1.0885318499058485,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3160,
+    "latency": 2.1019620643928647,
+    "ttft": 1.105327826924622,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3108,
+    "latency": 4.927836365997791,
+    "ttft": 1.1095754113048315,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3723,
+    "latency": 6.321645296178758,
+    "ttft": 1.3559940168634057,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3051,
+    "latency": 9.563522418960929,
+    "ttft": 1.103615098632872,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3735,
+    "latency": 19.52731392160058,
+    "ttft": 1.5197187438607216,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3717,
+    "latency": 9.766136684454978,
+    "ttft": 1.5568942623212934,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3724,
+    "latency": 13.934924426488578,
+    "ttft": 1.5323409531265497,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3109,
+    "latency": 2.452287799678743,
+    "ttft": 1.08799855876714,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3152,
+    "latency": 10.624001353047788,
+    "ttft": 1.2891323594376445,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3136,
+    "latency": 4.585550797171891,
+    "ttft": 1.288824673742056,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3707,
+    "latency": 8.34854369610548,
+    "ttft": 1.5410556010901928,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3050,
+    "latency": 6.196030513383448,
+    "ttft": 1.0864334907382727,
+    "ctx_matches": 9,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3547,
+    "latency": 4.075659557245672,
+    "ttft": 1.518236666917801,
+    "ctx_matches": 4,
+    "is_batch_leader": true,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3546,
+    "latency": 15.99357005674392,
+    "ttft": 1.5324457380920649,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3547,
+    "latency": 6.420455142855644,
+    "ttft": 1.5404012333601713,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3490,
+    "latency": 20.041835945099592,
+    "ttft": 1.795980678871274,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3718,
+    "latency": 4.83042311295867,
+    "ttft": 1.5673346389085054,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3734,
+    "latency": 13.04384017828852,
+    "ttft": 1.5338965794071555,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3135,
+    "latency": 19.432234932668507,
+    "ttft": 1.279830195941031,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  },
+  {
+    "pass": "batch",
+    "prompt_len": 3563,
+    "latency": 8.925863731652498,
+    "ttft": 1.51089021936059,
+    "ctx_matches": 4,
+    "is_batch_leader": false,
+    "error": null
+  }
+]
