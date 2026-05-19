@@ -320,7 +320,7 @@ def plot_batch(all_data, output_dir):
     plt.savefig(os.path.join(output_dir, "q4_optionB_TTFT.png"))
     plt.close()
 
-    # --- Cache Matches vs Batch Size
+    # --- Context Matches vs Batch Size
     plt.figure(figsize=(10, 6))
     for i, cache in enumerate(sorted_caches):
         if not results_matches[cache]: continue
@@ -329,11 +329,11 @@ def plot_batch(all_data, output_dir):
         plt.plot(x, y, marker="^", linewidth=2, markersize=8, label=cache, color=COLORS[i%10])
 
     plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
-    plt.ylabel("Avg KV Cache Matches per Batch", fontsize=11, fontweight='bold')
-    plt.title("Batch Size vs Cache Matches", fontsize=14, pad=15)
+    plt.ylabel("Avg KV Context Matches per Batch", fontsize=11, fontweight='bold')
+    plt.title("Batch Size vs Context Matches", fontsize=14, pad=15)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "q4_optionC_CacheMatches.png"))
+    plt.savefig(os.path.join(output_dir, "q4_optionC_ContextMatches.png"))
     plt.close()
 
 
