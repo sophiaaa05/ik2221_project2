@@ -329,7 +329,7 @@ def plot_batch(all_data, output_dir):
         plt.plot(x, y, marker="^", linewidth=2, markersize=8, label=cache, color=COLORS[i%10])
 
     plt.xlabel("Batch Size", fontsize=11, fontweight='bold')
-    plt.ylabel("Avg KV Context Matches per Batch", fontsize=11, fontweight='bold')
+    plt.ylabel("Avg Context Matches per Batch", fontsize=11, fontweight='bold')
     plt.title("Batch Size vs Context Matches", fontsize=14, pad=15)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
