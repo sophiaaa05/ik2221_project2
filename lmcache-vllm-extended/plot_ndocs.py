@@ -1,6 +1,8 @@
 """
-Plot accuracy, retrieval time, and inference time vs number of documents
-in the RAG database. Produces two separate figures:
+Description: 
+Plot accuracy, retrieval time, and inference time vs number of document in the RAG database. 
+
+Output:
   - ndocs_accuracy.png
   - ndocs_latency.png
 
@@ -13,10 +15,10 @@ import re
 import json
 import argparse
 from pathlib import Path
-
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Figure formating
 plt.rcParams.update({
     "figure.dpi": 150,
     "font.family": "sans-serif",
@@ -26,13 +28,12 @@ plt.rcParams.update({
     "grid.alpha": 0.35,
     "grid.linestyle": "--",
 })
+
+# Colors to use in the figures
 COLORS = plt.cm.tab10.colors
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Load
-# ─────────────────────────────────────────────────────────────────────────────
-
+# Load the test results
 def load_ndocs_summaries(results_dir: str) -> list:
     summaries = []
     for path in Path(results_dir).glob("*_summary.json"):
@@ -56,10 +57,7 @@ def load_ndocs_summaries(results_dir: str) -> list:
     return summaries
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Annotation — fixed direction per line so labels never collide
-# ─────────────────────────────────────────────────────────────────────────────
-
+# Avoid point labels colliding with each other
 def _annotate_fixed(ax, xs, ys, fmt, color, fontsize=8.5, offset=12, direction=1):
     va = "bottom" if direction > 0 else "top"
     for x, y in zip(xs, ys):
@@ -68,10 +66,8 @@ def _annotate_fixed(ax, xs, ys, fmt, color, fontsize=8.5, offset=12, direction=1
                     ha="center", va=va, fontsize=fontsize, color=color)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Figure 1 — Accuracy
-# ─────────────────────────────────────────────────────────────────────────────
 
+# Figure 1: Accuracy vs num.Documents
 def plot_accuracy(summaries: list, output_dir: str) -> None:
     n   = [d["n_docs"]           for d in summaries]
     acc = [d["rag_accuracy_pct"] for d in summaries]
@@ -97,10 +93,7 @@ def plot_accuracy(summaries: list, output_dir: str) -> None:
     plt.close(fig)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Figure 2 — Latency breakdown
-# ─────────────────────────────────────────────────────────────────────────────
-
+# Figure 2: Different Latencies vs num.Documents
 def plot_latency(summaries: list, output_dir: str) -> None:
     n         = [d["n_docs"]                 for d in summaries]
     retrieval = [d["avg_retrieval_time_sec"]  for d in summaries]
@@ -116,30 +109,25 @@ def plot_latency(summaries: list, output_dir: str) -> None:
     ax.plot(n, total,     marker="o", linewidth=2.2, markersize=8,
             color=COLORS[3],                  label="Total avg latency")
 
-    # retrieval near zero → label below; inference below total; total above
     _annotate_fixed(ax, n, retrieval, "{:.4f}s", color=COLORS[1],
-                    fontsize=8, offset=10, direction=1)
+                    fontsize=8, offset=10, direction=1)          # Label above
     _annotate_fixed(ax, n, inference, "{:.3f}s",  color=COLORS[2],
-                    fontsize=8, offset=10, direction=-1)
+                    fontsize=8, offset=10, direction=-1)         # Label bellow
     _annotate_fixed(ax, n, total,     "{:.3f}s",  color=COLORS[3],
-                    fontsize=8, offset=12, direction=+1)
+                    fontsize=8, offset=12, direction=+1)         # Label above
 
     ax.set_xlabel("Number of documents in RAG database", fontsize=11)
     ax.set_ylabel("Time (s)", fontsize=11)
     ax.set_xticks(n)
     ax.set_title("Latency vs Number of Documents", fontsize=13, pad=12)
-    ax.legend(fontsize=10, loc="center right")
+    ax.legend(fontsize=10, loc="center right")     # where the legend sits on the figure
 
     os.makedirs(output_dir, exist_ok=True)
-    out = Path(output_dir) / "ndocs_latency.png"
-    fig.savefig(out, bbox_inches="tight")
+    out = Path(output_dir) / "ndocs_latency.png"   # Output directory and name file
+    fig.savefig(out, bbox_inches="tight")          # Save the file
     print(f"Saved → {out}")
     plt.close(fig)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Entry point
-# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
@@ -147,6 +135,7 @@ def main():
     parser.add_argument("--output-dir",  default="plots")
     args = parser.parse_args()
 
+    # Load the results summaries
     summaries = load_ndocs_summaries(args.results_dir)
     print(f"Loaded {len(summaries)} ndocs experiment(s):")
     for d in summaries:
@@ -156,8 +145,12 @@ def main():
               f"total={d['avg_latency_sec']:.3f}s")
 
     print("\nGenerating figures...")
+
+    # Figure 1
     plot_accuracy(summaries, args.output_dir)
+    # Figure 2
     plot_latency(summaries,  args.output_dir)
+
     print("All done!")
 
 
