@@ -1,13 +1,27 @@
+# Root of the shared project directory on the JupyterHub server.
 PROJECT_DIR := /home/jovyan/shared/ik2221_project2
+
+# Python interpreter inside the project's virtual environment.
 PYTHON      := $(PROJECT_DIR)/venv/bin/python
+
+# Source folder of paper .txt files 
 DATA_SRC    := lmcache-vllm-extended/frontend/data
+
+# Populated by stage_docs before each n-docs run.
 DATA_LIVE   := $(PROJECT_DIR)/data/docs
+
+# Output directory where JSON result files are written by request_generator.
 RESULTS     := $(PROJECT_DIR)/results
 
+
+# .PHONY tells Make that these targets are NOT files, just named commands. 
+# Without this, Make would see it, think the target is already up-to-date, 
+# and skip running it entirely. .PHONY prevents that mistake.
 .PHONY: server engine clean \
         cache-0 cache-01 cache-05 cache-1 cache-2 cache-4 cache-8 \
         ndocs-2 ndocs-4 ndocs-7 ndocs-10 ndocs-14
 
+# File target 
 $(RESULTS):
 	mkdir -p $(RESULTS)
 
@@ -24,7 +38,7 @@ engine:
 	LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml \
     CUDA_VISIBLE_DEVICES=0 \
 	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/script.py serve \
-		Qwen/Qwen2.5-1.5B-Instruct \
+		Qwen/Qwen2.5-3B-Instruct \  
 		--gpu-memory-utilization 0.8 \
 		--dtype half \
 		--port 8000 \
@@ -43,6 +57,7 @@ define run_cache_test
 	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs 14
 endef
 
+# Experiment set 1: vary KV-cache size
 cache-0:   $(RESULTS)
 	$(call run_cache_test,cache_0gb)
 
@@ -71,6 +86,7 @@ define run_ndocs_test
 	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs $(1)
 endef
 
+# Experiment set 12: vary the number of documents in the RAG db
 ndocs-2:   $(RESULTS)
 	$(call run_ndocs_test,2)
 
