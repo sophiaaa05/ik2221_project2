@@ -11,12 +11,12 @@ RESULTS     := $(PROJECT_DIR)/results
 $(RESULTS):
 	mkdir -p $(RESULTS)
 
-# ── Clean KV cache (run between every experiment) ───────────────────────────
+# Clean KV cache 
 clean:
 	rm -rf $(PROJECT_DIR)/data/*
 	@echo "Cache cleared."
 
-# ── Server + engine (start once per session, restart between ndocs runs) ────
+#Server + engine 
 server:
 	$(PYTHON) -m lmcache_server.server 127.0.0.1 65432 $(DATA_LIVE)
 
@@ -30,14 +30,14 @@ engine:
 		--port 8000 \
 		--guided-decoding-backend lm-format-enforcer
 
-# ── Stage N docs into the live directory ─────────────────────────────────── 
+# Stage N docs into the live directory
 define stage_docs
 	rm -rf $(DATA_LIVE) && mkdir -p $(DATA_LIVE)
 	ls $(DATA_SRC)/*.txt | sort | head -$(1) | xargs -I{} cp {} $(DATA_LIVE)/
 	@echo "Staged $(1) docs into $(DATA_LIVE)."
 endef
 
-# ── Cache-size experiments (all 14 docs, vary cache config in yaml) ──────── 
+# Cache-size experiments 
 define run_cache_test
 	RESULTS_LABEL=$(1) RESULTS_DIR=$(RESULTS) \
 	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs 14
@@ -64,7 +64,7 @@ cache-4:   $(RESULTS)
 cache-8:   $(RESULTS)
 	$(call run_cache_test,cache_8gb)
 
-# ── N-docs experiments (fixed cache config, vary database size) ───────────── 
+# N-docs experiments
 define run_ndocs_test
 	$(call stage_docs,$(1))
 	RESULTS_LABEL=ndocs_$(1) RESULTS_DIR=$(RESULTS) \
