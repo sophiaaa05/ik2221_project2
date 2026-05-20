@@ -183,7 +183,6 @@ def send_batch(requests, model_id):
     response = httpx.post(
         f"http://{IP}:{PORT}/v2/chat/completions/rag",
         json=batch_payload,
-        timeout=2000,
     )
     response.raise_for_status()
 

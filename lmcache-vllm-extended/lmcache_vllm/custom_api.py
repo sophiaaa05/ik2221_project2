@@ -12,15 +12,25 @@ import vllm.entrypoints.openai.api_server as base_api
 from vllm.entrypoints.openai.protocol import *
 from fastapi import APIRouter, Request
 
+# Sentence-transformer model used to convert text into embedding vectors.
 EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+
+# Absolute path to the folder containing the research paper .txt files.
 DATA_DIR = Path(__file__).resolve().parent.parent / "frontend" / "data"
 
+# RAG database
 _rag_db = {}
 _embed_model = None
 
+# Marks the end of the stream
 STREAM_END = "data: [DONE]"
 
 def get_llm_embeddings(text, model):
+    """
+    Convert a piece of text into an embedding tensor suitable 
+    for cosine-similarity comparisons.
+    """
+
     embedding = model.encode(text, convert_to_tensor=True)
     return embedding.unsqueeze(0).cpu()
 
@@ -37,6 +47,11 @@ if multiprocessing.current_process().name == "MainProcess":
     print("[RAG] RAG database built and ready.")
 
 def rag_search(query):
+    """
+    Embed the incoming query and find the best-matching paper using
+    cosine similarity against the pre-computed paper embeddings.
+    """
+
     print(f"[RAG] Searching for: {query[:60]}...")
     q_emb = get_llm_embeddings(query, _embed_model)
     best_paper = max(_rag_db, key=lambda p: F.cosine_similarity(q_emb, _rag_db[p][0]).item())
@@ -57,16 +72,32 @@ extended_router = APIRouter()
 
 @extended_router.get("/models")
 async def show_available_models(request: Request):
+    """
+    Proxy to vLLM's built-in /models endpoint.
+    """
+    
     print("v2 models is called!")
     return await base_api.show_available_models(request)
 
 @extended_router.post("/chat/completions")
 async def create_chat_completion(request: ChatCompletionRequest, raw_request: Request):
+    """
+    Proxy to vLLM's standard single-request chat-completion endpoint.
+    """
+
     print("v2 completion is called")
     return await base_api.create_chat_completion(request, raw_request)
 
 @extended_router.post("/chat/batched-completions")
 async def create_chat_batched_completions(requests: List[BatchedRequest], raw_request: Request):
+    """
+    Batch completion endpoint for pre-labeled requests.
+    Sorts by context_id for cache locality, then processes sequentially with streaming
+    enabled internally so TTFT can be measured per request.
+    TTFT is recorded at the first non-empty token chunk from the stream.
+    """
+
+
     # Sorting the requests based on the context_id
     requests.sort(key=lambda req: req.context_id)
 
@@ -117,6 +148,17 @@ async def create_chat_batched_completions(requests: List[BatchedRequest], raw_re
 
 @extended_router.post("/chat/completions/rag")
 async def create_batch_completion(batch: BatchRequest, raw_request: Request):
+    """
+    RAG-augmented batch inference endpoint.
+
+    Pipeline:
+      1. Classify each request: embed the question, find closest paper via cosine sim.
+      2. Sort classified requests by paper name.
+      3. Prepend the retrieved paper text as a user message.
+      4. Run LLM inference and record per-request inference time.
+      5. Return results in the ORIGINAL request order.
+    """
+
     print(f"[SCHEDULER] Received batch of {len(batch.requests)} requests")
 
     # Classify each request with RAG, keep original index
