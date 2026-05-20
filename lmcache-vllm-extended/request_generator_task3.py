@@ -145,12 +145,7 @@ def build_requests(contexts):
     """
     requests = []
     for context_id, context_text in contexts.items():
-        questions = PAPER_QUESTIONS.get(context_id, [
-            # Fallback questions for unknown/future papers
-            f"What is the main topic of {TITLES.get(context_id, context_id)}?",
-            f"What problem does {TITLES.get(context_id, context_id)} address?",
-            f"What methods are proposed in {TITLES.get(context_id, context_id)}?",
-        ])
+        questions = PAPER_QUESTIONS[context_id] # default has been deleted
         for question in questions:
             requests.append({
                 "context_id": context_id, # ground-truth label for evaluation
@@ -183,6 +178,7 @@ def send_batch(requests, model_id):
     response = httpx.post(
         f"http://{IP}:{PORT}/v2/chat/completions/rag",
         json=batch_payload,
+        timeout=2000, #needed
     )
     response.raise_for_status()
 

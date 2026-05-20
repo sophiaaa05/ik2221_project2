@@ -36,13 +36,13 @@ server:
 
 engine:
 	LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml \
-    CUDA_VISIBLE_DEVICES=0 \
+	CUDA_VISIBLE_DEVICES=0 \
 	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/script.py serve \
-		Qwen/Qwen2.5-3B-Instruct \  
-		--gpu-memory-utilization 0.8 \
+		Qwen/Qwen2.5-3B-Instruct \
+		--gpu-memory-utilization 0.9 \
 		--dtype half \
 		--port 8000 \
-		--guided-decoding-backend lm-format-enforcer
+		--guided-decoding-backend lm-format-enforcer --max-model-len 8192
 
 # Stage N docs into the live directory
 define stage_docs
