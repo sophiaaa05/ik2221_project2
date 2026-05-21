@@ -165,9 +165,9 @@ async def create_batch_completion(batch: BatchRequest, raw_request: Request):
     classified = []
     for idx, req in enumerate(batch.requests):
         query = req.messages[-1]["content"]
-        t0 = time.time()
+        t0 = time.perf_counter()
         paper = rag_search(query)
-        retrieval_time = time.time() - t0
+        retrieval_time = time.perf_counter() - t0
         classified.append((paper, retrieval_time, req, idx))
 
     # Reorder so same papers are grouped (cache efficiency)
@@ -177,9 +177,9 @@ async def create_batch_completion(batch: BatchRequest, raw_request: Request):
     results = [None] * len(batch.requests)
     for paper, retrieval_time, req, original_idx in classified:
         req.messages.insert(0, {"role": "user", "content": _rag_db[paper][1]})
-        t0 = time.time()
+        t0 =  time.perf_counter()
         result = await base_api.create_chat_completion(req, raw_request)
-        inference_time = time.time() - t0
+        inference_time =  time.perf_counter() - t0
         results[original_idx] = {
             "predicted_paper": paper,
             "retrieval_time": retrieval_time,
