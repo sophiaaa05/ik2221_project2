@@ -1,13 +1,12 @@
 """
-Run this script once before starting the server to pre-compute paper embeddings.
-Output: rag_index.pt in the project data directory.
-Usage: 
-python lmcache-vllm-extended/lmcache_vllm/precompute_embeddings.py 
+Run once before any experiments to pre-compute paper embeddings.
+Output: rag_index.pt
+Usage: python precompute_embeddings.py
 """
 
 import os
 import torch
-import argparse  
+import argparse
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
@@ -15,12 +14,13 @@ EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
 DATA_DIR         = Path(__file__).resolve().parent.parent / "frontend" / "data"
 INDEX_PATH       = Path(__file__).resolve().parent.parent / "frontend" / "rag_index.pt"
 
-def build_index(data_dir, model, n_docs=None):
+def build_index(data_dir, model):
+    """
+    Embed all papers in data_dir and return the full index.
+    Always embeds all papers — the server slices to N_DOCS at startup.
+    """
     index = {}
-    files = sorted(f for f in os.listdir(data_dir) if f.endswith(".txt"))
-    if n_docs is not None:
-        files = files[:n_docs]
-    for filename in files:
+    for filename in sorted(f for f in os.listdir(data_dir) if f.endswith(".txt")):
         key = filename.removesuffix(".txt")
         with open(os.path.join(data_dir, filename), "r", encoding="utf-8") as f:
             text = f.read()
@@ -30,14 +30,9 @@ def build_index(data_dir, model, n_docs=None):
     return index
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n-docs", type=int, default=None,
-                        help="Number of documents to embed (default: all)")
-    args = parser.parse_args()
-
-    print(f"[PRECOMPUTE] Loading model...")
+    print("[PRECOMPUTE] Loading model...")
     model = SentenceTransformer(EMBED_MODEL_NAME, device="cuda")
     print(f"[PRECOMPUTE] Building index from {DATA_DIR}...")
-    index = build_index(DATA_DIR, model, n_docs=args.n_docs)
+    index = build_index(DATA_DIR, model)
     torch.save(index, INDEX_PATH)
     print(f"[PRECOMPUTE] Saved {len(index)} embeddings to {INDEX_PATH}")

@@ -7,7 +7,9 @@ Output:
   - ndocs_latency.png
 
 Usage:
-    python plot_ndocs.py --results-dir results --output-dir plots
+    python lmcache-vllm-extended/plot_ndocs.py \
+    --results-dir /home/jovyan/shared/ik2221_project2/results \
+    --output-dir /home/jovyan/shared/ik2221_project2/plots3
 """
 
 import os

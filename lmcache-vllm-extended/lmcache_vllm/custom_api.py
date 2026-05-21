@@ -18,6 +18,13 @@ EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
 # Absolute path to the folder containing the research paper .txt files.
 DATA_DIR = Path(__file__).resolve().parent.parent / "frontend" / "data"
 
+# Full prebuilt index produced by precompute_embeddings.py
+INDEX_PATH = Path(__file__).resolve().parent.parent / "frontend" / "rag_index.pt"
+
+# Number of docs to load from the index — set via env var, defaults to all.
+# e.g. N_DOCS=7 make server  →  loads only the first 7 papers.
+N_DOCS = int(os.environ.get("N_DOCS", 0)) or None
+
 # RAG database
 _rag_db = {}
 _embed_model = None
@@ -35,16 +42,18 @@ def get_llm_embeddings(text, model):
     return embedding.unsqueeze(0).cpu()
 
 if multiprocessing.current_process().name == "MainProcess":
-    print("[RAG] Loading embedding model on GPU...")
+    print("[RAG] Loading embedding model...")
     _embed_model = SentenceTransformer(EMBED_MODEL_NAME, device="cuda")
-    print("[RAG] Pre-computing paper embeddings on GPU...")
-    for filename in os.listdir(DATA_DIR):
-        if filename.endswith(".txt"):
-            key = filename.removesuffix(".txt")
-            text = open(os.path.join(DATA_DIR, filename)).read()
-            _rag_db[key] = (get_llm_embeddings(text, _embed_model), text)
-            print(f"[RAG] Embedded: {key}")
-    print("[RAG] RAG database built and ready.")
+
+    print(f"[RAG] Loading prebuilt index from {INDEX_PATH}...")
+    full_index = torch.load(INDEX_PATH)
+
+    # Slice to N_DOCS if set, otherwise use all
+    if N_DOCS is not None:
+        full_index = dict(list(full_index.items())[:N_DOCS])
+
+    _rag_db = full_index
+    print(f"[RAG] Index loaded: {len(_rag_db)} papers active.")
 
 def rag_search(query):
     """

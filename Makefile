@@ -17,13 +17,17 @@ RESULTS     := $(PROJECT_DIR)/results
 # .PHONY tells Make that these targets are NOT files, just named commands. 
 # Without this, Make would see it, think the target is already up-to-date, 
 # and skip running it entirely. .PHONY prevents that mistake.
-.PHONY: server engine clean \
+.PHONY: server engine clean rag-index\
         cache-0 cache-01 cache-05 cache-1 cache-2 cache-4 cache-8 \
         ndocs-2 ndocs-4 ndocs-7 ndocs-10 ndocs-14
 
 # File target 
 $(RESULTS):
 	mkdir -p $(RESULTS)
+
+# Run once before any experiments to build the full 14-doc index.
+rag-index:
+	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/precompute_embeddings.py
 
 # Clean KV cache 
 clean:
@@ -35,6 +39,7 @@ server:
 	$(PYTHON) -m lmcache_server.server 127.0.0.1 65432 $(DATA_LIVE)
 
 engine:
+	N_DOCS=$(or $(N_DOCS),14) \
 	LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml \
 	CUDA_VISIBLE_DEVICES=0 \
 	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/script.py serve \
@@ -79,7 +84,7 @@ cache-4:   $(RESULTS)
 cache-8:   $(RESULTS)
 	$(call run_cache_test,cache_8gb)
 
-# N-docs experiments
+# ndocs experiments: restart server with correct N, then benchmark
 define run_ndocs_test
 	$(call stage_docs,$(1))
 	RESULTS_LABEL=ndocs_$(1) RESULTS_DIR=$(RESULTS) \
