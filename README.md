@@ -13,37 +13,57 @@ To work with Git, you'll need to set up the VM's SSH key and add to your Github 
 - git config --global user.name "your-github-username"
 - git config --global user.email "<your-github-email@example.com>"
 
-## Development
+## Running the application
 
-- Run the LMCache storage server: `python3 -m lmcache_server.server 127.0.0.1 65432 kv-cache/`
+- Run the LMCache storage server: `python3 -m lmcache_server.server 127.0.0.1 65432 data/`
 - Run the LMCache engine: `LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml CUDA_VISIBLE_DEVICES=0 python lmcache-vllm-extended/lmcache_vllm/script.py serve Qwen/Qwen2.5-3B-Instruct  --gpu-memory-utilization 0.8 --dtype half --port 8000 --guided-decoding-backend lm-format-enforcer --max-model-len 8192`
 - Run the frontend: `cd lmcache-vllm-extended/frontend && streamlit run frontend.py`
 
 The frontend will be visible on `https://gpu1.eecs.kth.se/user/<kth-username>/vscode/proxy/8501/`.
 
-## Task 3
+## Running the benchmarks
 
-To run and test Task 3 (RAG evaluation):
+> Note: Some Makefile paths may have to be adjusted based on your setup
 
-In the first terminal, clean cached files and start the LMCache server:
+- Set `max_local_cache_size` to the desired local KV cache size in `configuration.yaml`
+
+- Clean cached KV blocks and/or staged RAG documents:
 
 ```bash
 make clean
-make server
 ````
 
-In a second terminal, start the LMCache engine:
+- Run the LMCache storage server:
+
+```bash
+make server
+```
+
+- Run the LMCache engine:
 
 ```bash
 make engine
 ```
 
-In a third terminal, run the Task 3 evaluation with 14 documents:
+### Task 1 + 2
+
+- Run the request generator, with the appropriate options set:
+
+```bash
+python lmcache-vllm-extended/request_generator.py
+    # --mode single                                 Task 1.1
+    # --mode repeat                                 Task 1.2
+    # --mode diverse_sweep --max-contexts <x>       Task 1.3
+    # --mode batch --batch-size <x>                 Task 2
+    # --mode overlap --batch-size <x>               Task 2
+```
+
+### Task 3
+
+- Run the task 3 evaluation with 14 documents:
 
 ```bash
 make ndocs-14
 ```
-
-This tests the RAG pipeline with 14 retrieved documents.
 
 See the `Makefile` for additional testing options and configurations.

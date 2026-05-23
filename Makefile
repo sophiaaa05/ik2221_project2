@@ -56,34 +56,6 @@ define stage_docs
 	@echo "Staged $(1) docs into $(DATA_LIVE)."
 endef
 
-# Cache-size experiments 
-define run_cache_test
-	RESULTS_LABEL=$(1) RESULTS_DIR=$(RESULTS) \
-	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs 14
-endef
-
-# Experiment set 1: vary KV-cache size
-cache-0:   $(RESULTS)
-	$(call run_cache_test,cache_0gb)
-
-cache-01:  $(RESULTS)
-	$(call run_cache_test,cache_01gb)
-
-cache-05:  $(RESULTS)
-	$(call run_cache_test,cache_05gb)
-
-cache-1:   $(RESULTS)
-	$(call run_cache_test,cache_1gb)
-
-cache-2:   $(RESULTS)
-	$(call run_cache_test,cache_2gb)
-
-cache-4:   $(RESULTS)
-	$(call run_cache_test,cache_4gb)
-
-cache-8:   $(RESULTS)
-	$(call run_cache_test,cache_8gb)
-
 # ndocs experiments: restart server with correct N, then benchmark
 define run_ndocs_test
 	$(call stage_docs,$(1))
