@@ -1,34 +1,112 @@
+import os
+import json
 import time
-
+import torch
+import torch.nn.functional as F
+import multiprocessing
+from pathlib import Path
+from typing import List
+from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
 import vllm.entrypoints.openai.api_server as base_api
 from vllm.entrypoints.openai.protocol import *
 from fastapi import APIRouter, Request
-import json
 
-# You should use the following file to implement all APIs you may require in the project.
-# Note that the two important ones are already implemented here simply by calling the default v1 implementation in VLLM.
-# You may need to modify these functions to enable pre-processing of requests, before running the inference.
+# Sentence-transformer model used to convert text into embedding vectors.
+EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
 
-extended_router = APIRouter()
+# Absolute path to the folder containing the research paper .txt files.
+DATA_DIR = Path(__file__).resolve().parent.parent / "frontend" / "data"
+
+# Full prebuilt index produced by precompute_embeddings.py
+INDEX_PATH = Path(__file__).resolve().parent.parent / "frontend" / "rag_index.pt"
+
+# Number of docs to load from the index — set via env var, defaults to all.
+# e.g. N_DOCS=7 make server  →  loads only the first 7 papers.
+N_DOCS = int(os.environ.get("N_DOCS", 0)) or None
+
+# RAG database
+_rag_db = {}
+_embed_model = None
+
+# Marks the end of the stream
 STREAM_END = "data: [DONE]"
+
+def get_llm_embeddings(text, model):
+    """
+    Convert a piece of text into an embedding tensor suitable 
+    for cosine-similarity comparisons.
+    """
+
+    embedding = model.encode(text, convert_to_tensor=True)
+    return embedding.unsqueeze(0).cpu()
+
+if multiprocessing.current_process().name == "MainProcess":
+    print("[RAG] Loading embedding model...")
+    _embed_model = SentenceTransformer(EMBED_MODEL_NAME, device="cuda")
+
+    print(f"[RAG] Loading prebuilt index from {INDEX_PATH}...")
+    full_index = torch.load(INDEX_PATH)
+
+    # Slice to N_DOCS if set, otherwise use all
+    if N_DOCS is not None:
+        full_index = dict(list(full_index.items())[:N_DOCS])
+
+    _rag_db = full_index
+    print(f"[RAG] Index loaded: {len(_rag_db)} papers active.")
+
+def rag_search(query):
+    """
+    Embed the incoming query and find the best-matching paper using
+    cosine similarity against the pre-computed paper embeddings.
+    """
+
+    print(f"[RAG] Searching for: {query[:60]}...")
+    q_emb = get_llm_embeddings(query, _embed_model)
+    best_paper = max(_rag_db, key=lambda p: F.cosine_similarity(q_emb, _rag_db[p][0]).item())
+    print(f"[RAG] Best match: {best_paper}")
+    return best_paper
+
+
+class BatchRequest(BaseModel):
+    requests: List[ChatCompletionRequest]
 
 class BatchedRequest(ChatCompletionRequest):
     """Used for a single request in the batch so it's possible to sort them"""
     request_id: int = -1
     context_id: str = ""
 
+
+extended_router = APIRouter()
+
 @extended_router.get("/models")
 async def show_available_models(request: Request):
+    """
+    Proxy to vLLM's built-in /models endpoint.
+    """
+    
     print("v2 models is called!")
     return await base_api.show_available_models(request)
 
 @extended_router.post("/chat/completions")
 async def create_chat_completion(request: ChatCompletionRequest, raw_request: Request):
+    """
+    Proxy to vLLM's standard single-request chat-completion endpoint.
+    """
+
     print("v2 completion is called")
     return await base_api.create_chat_completion(request, raw_request)
 
 @extended_router.post("/chat/batched-completions")
 async def create_chat_batched_completions(requests: List[BatchedRequest], raw_request: Request):
+    """
+    Batch completion endpoint for pre-labeled requests.
+    Sorts by context_id for cache locality, then processes sequentially with streaming
+    enabled internally so TTFT can be measured per request.
+    TTFT is recorded at the first non-empty token chunk from the stream.
+    """
+
+
     # Sorting the requests based on the context_id
     requests.sort(key=lambda req: req.context_id)
 
@@ -74,5 +152,47 @@ async def create_chat_batched_completions(requests: List[BatchedRequest], raw_re
         latency = time.perf_counter() - start
 
         results.append({"request_id": req.request_id, "response": full_response, "latency": latency, "ttft": ttft}) 
+
+    return results
+
+@extended_router.post("/chat/completions/rag")
+async def create_batch_completion(batch: BatchRequest, raw_request: Request):
+    """
+    RAG-augmented batch inference endpoint.
+
+    Pipeline:
+      1. Classify each request: embed the question, find closest paper via cosine sim.
+      2. Sort classified requests by paper name.
+      3. Prepend the retrieved paper text as a user message.
+      4. Run LLM inference and record per-request inference time.
+      5. Return results in the ORIGINAL request order.
+    """
+
+    print(f"[SCHEDULER] Received batch of {len(batch.requests)} requests")
+
+    # Classify each request with RAG, keep original index
+    classified = []
+    for idx, req in enumerate(batch.requests):
+        query = req.messages[-1]["content"]
+        t0 = time.perf_counter()
+        paper = rag_search(query)
+        retrieval_time = time.perf_counter() - t0
+        classified.append((paper, retrieval_time, req, idx))
+
+    # Reorder so same papers are grouped (cache efficiency)
+    classified.sort(key=lambda x: x[0])
+
+    # Process sequentially, writing back to original index positions
+    results = [None] * len(batch.requests)
+    for paper, retrieval_time, req, original_idx in classified:
+        req.messages.insert(0, {"role": "user", "content": _rag_db[paper][1]})
+        t0 =  time.perf_counter()
+        result = await base_api.create_chat_completion(req, raw_request)
+        inference_time =  time.perf_counter() - t0
+        results[original_idx] = {
+            "predicted_paper": paper,
+            "retrieval_time": retrieval_time,
+            "inference_time": inference_time,
+        }
 
     return results

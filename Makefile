@@ -1,0 +1,108 @@
+# Root of the shared project directory on the JupyterHub server.
+PROJECT_DIR := /home/jovyan/shared/ik2221_project2
+
+# Python interpreter inside the project's virtual environment.
+PYTHON      := $(PROJECT_DIR)/venv/bin/python
+
+# Source folder of paper .txt files 
+DATA_SRC    := lmcache-vllm-extended/frontend/data
+
+# Populated by stage_docs before each n-docs run.
+DATA_LIVE   := $(PROJECT_DIR)/data/docs
+
+# Output directory where JSON result files are written by request_generator.
+RESULTS     := $(PROJECT_DIR)/results
+
+
+# .PHONY tells Make that these targets are NOT files, just named commands. 
+# Without this, Make would see it, think the target is already up-to-date, 
+# and skip running it entirely. .PHONY prevents that mistake.
+.PHONY: server engine clean rag-index\
+        cache-0 cache-01 cache-05 cache-1 cache-2 cache-4 cache-8 \
+        ndocs-2 ndocs-4 ndocs-7 ndocs-10 ndocs-14
+
+# File target 
+$(RESULTS):
+	mkdir -p $(RESULTS)
+
+# Run once before any experiments to build the full 14-doc index.
+rag-index:
+	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/precompute_embeddings.py
+
+# Clean KV cache 
+clean:
+	rm -rf $(PROJECT_DIR)/data/*
+	@echo "Cache cleared."
+
+#Server + engine 
+server:
+	$(PYTHON) -m lmcache_server.server 127.0.0.1 65432 $(DATA_LIVE)
+
+engine:
+	N_DOCS=$(or $(N_DOCS),14) \
+	LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml \
+	CUDA_VISIBLE_DEVICES=0 \
+	$(PYTHON) lmcache-vllm-extended/lmcache_vllm/script.py serve \
+		Qwen/Qwen2.5-3B-Instruct \
+		--gpu-memory-utilization 0.9 \
+		--dtype half \
+		--port 8000 \
+		--guided-decoding-backend lm-format-enforcer --max-model-len 8192
+
+# Stage N docs into the live directory
+define stage_docs
+	rm -rf $(DATA_LIVE) && mkdir -p $(DATA_LIVE)
+	ls $(DATA_SRC)/*.txt | sort | head -$(1) | xargs -I{} cp {} $(DATA_LIVE)/
+	@echo "Staged $(1) docs into $(DATA_LIVE)."
+endef
+
+# Cache-size experiments 
+define run_cache_test
+	RESULTS_LABEL=$(1) RESULTS_DIR=$(RESULTS) \
+	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs 14
+endef
+
+# Experiment set 1: vary KV-cache size
+cache-0:   $(RESULTS)
+	$(call run_cache_test,cache_0gb)
+
+cache-01:  $(RESULTS)
+	$(call run_cache_test,cache_01gb)
+
+cache-05:  $(RESULTS)
+	$(call run_cache_test,cache_05gb)
+
+cache-1:   $(RESULTS)
+	$(call run_cache_test,cache_1gb)
+
+cache-2:   $(RESULTS)
+	$(call run_cache_test,cache_2gb)
+
+cache-4:   $(RESULTS)
+	$(call run_cache_test,cache_4gb)
+
+cache-8:   $(RESULTS)
+	$(call run_cache_test,cache_8gb)
+
+# ndocs experiments: restart server with correct N, then benchmark
+define run_ndocs_test
+	$(call stage_docs,$(1))
+	RESULTS_LABEL=ndocs_$(1) RESULTS_DIR=$(RESULTS) \
+	$(PYTHON) lmcache-vllm-extended/request_generator_task3.py --n-docs $(1)
+endef
+
+# Experiment set 12: vary the number of documents in the RAG db
+ndocs-2:   $(RESULTS)
+	$(call run_ndocs_test,2)
+
+ndocs-4:   $(RESULTS)
+	$(call run_ndocs_test,4)
+
+ndocs-7:   $(RESULTS)
+	$(call run_ndocs_test,7)
+
+ndocs-10:  $(RESULTS)
+	$(call run_ndocs_test,10)
+
+ndocs-14:  $(RESULTS)
+	$(call run_ndocs_test,14)
