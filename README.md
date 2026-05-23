@@ -20,3 +20,30 @@ To work with Git, you'll need to set up the VM's SSH key and add to your Github 
 - Run the frontend: `cd lmcache-vllm-extended/frontend && streamlit run frontend.py`
 
 The frontend will be visible on `https://gpu1.eecs.kth.se/user/<kth-username>/vscode/proxy/8501/`.
+
+## Task 3
+
+To run and test Task 3 (RAG evaluation):
+
+In the first terminal, clean cached files and start the LMCache server:
+
+```bash
+make clean
+make server
+````
+
+In a second terminal, start the LMCache engine:
+
+```bash
+make engine
+```
+
+In a third terminal, run the Task 3 evaluation with 14 documents:
+
+```bash
+make ndocs-14
+```
+
+This tests the RAG pipeline with 14 retrieved documents.
+
+See the `Makefile` for additional testing options and configurations.
