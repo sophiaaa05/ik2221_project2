@@ -14,13 +14,14 @@ import random
 import argparse
 import httpx
 import openai
+from pathlib import Path
 
 #Server connection settings
 IP   = "127.0.0.1"
 PORT = 8000
 
 # Paths for input data and output results; support env var overrides for flexibility
-DATA_DIR   = "lmcache-vllm-extended/frontend/data"
+DATA_DIR = Path(__file__).resolve().parent / "frontend" / "data"
 OUTPUT_DIR = os.environ.get("RESULTS_DIR", "results")
 LABEL      = os.environ.get("RESULTS_LABEL", "task3_scheduled")
 
